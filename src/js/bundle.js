@@ -12,7 +12,6 @@
         };
         return SVGUtils;
     }());
-    //# sourceMappingURL=Utils.js.map
 
     var pi = Math.PI,
         tau = 2 * pi,
@@ -2430,7 +2429,7 @@
       return d ? linear(a, d) : constant$4(isNaN(a) ? b : a);
     }
 
-    var interpolateRgb = (function rgbGamma(y) {
+    var rgb$1 = (function rgbGamma(y) {
       var color$$1 = gamma(y);
 
       function rgb$$1(start, end) {
@@ -2452,7 +2451,7 @@
       return rgb$$1;
     })(1);
 
-    function interpolateNumber(a, b) {
+    function number(a, b) {
       return a = +a, b -= a, function(t) {
         return a + b * t;
       };
@@ -2473,7 +2472,7 @@
       };
     }
 
-    function interpolateString(a, b) {
+    function string(a, b) {
       var bi = reA.lastIndex = reB.lastIndex = 0, // scan index for next number in b
           am, // current match in a
           bm, // current match in b
@@ -2498,7 +2497,7 @@
           else s[++i] = bm;
         } else { // interpolate non-matching numbers
           s[++i] = null;
-          q.push({i: i, x: interpolateNumber(am, bm)});
+          q.push({i: i, x: number(am, bm)});
         }
         bi = reB.lastIndex;
       }
@@ -2581,7 +2580,7 @@
       function translate(xa, ya, xb, yb, s, q) {
         if (xa !== xb || ya !== yb) {
           var i = s.push("translate(", null, pxComma, null, pxParen);
-          q.push({i: i - 4, x: interpolateNumber(xa, xb)}, {i: i - 2, x: interpolateNumber(ya, yb)});
+          q.push({i: i - 4, x: number(xa, xb)}, {i: i - 2, x: number(ya, yb)});
         } else if (xb || yb) {
           s.push("translate(" + xb + pxComma + yb + pxParen);
         }
@@ -2590,7 +2589,7 @@
       function rotate(a, b, s, q) {
         if (a !== b) {
           if (a - b > 180) b += 360; else if (b - a > 180) a += 360; // shortest path
-          q.push({i: s.push(pop(s) + "rotate(", null, degParen) - 2, x: interpolateNumber(a, b)});
+          q.push({i: s.push(pop(s) + "rotate(", null, degParen) - 2, x: number(a, b)});
         } else if (b) {
           s.push(pop(s) + "rotate(" + b + degParen);
         }
@@ -2598,7 +2597,7 @@
 
       function skewX(a, b, s, q) {
         if (a !== b) {
-          q.push({i: s.push(pop(s) + "skewX(", null, degParen) - 2, x: interpolateNumber(a, b)});
+          q.push({i: s.push(pop(s) + "skewX(", null, degParen) - 2, x: number(a, b)});
         } else if (b) {
           s.push(pop(s) + "skewX(" + b + degParen);
         }
@@ -2607,7 +2606,7 @@
       function scale(xa, ya, xb, yb, s, q) {
         if (xa !== xb || ya !== yb) {
           var i = s.push(pop(s) + "scale(", null, ",", null, ")");
-          q.push({i: i - 4, x: interpolateNumber(xa, xb)}, {i: i - 2, x: interpolateNumber(ya, yb)});
+          q.push({i: i - 4, x: number(xa, xb)}, {i: i - 2, x: number(ya, yb)});
         } else if (xb !== 1 || yb !== 1) {
           s.push(pop(s) + "scale(" + xb + "," + yb + ")");
         }
@@ -3083,10 +3082,10 @@
 
     function interpolate(a, b) {
       var c;
-      return (typeof b === "number" ? interpolateNumber
-          : b instanceof color ? interpolateRgb
-          : (c = color(b)) ? (b = c, interpolateRgb)
-          : interpolateString)(a, b);
+      return (typeof b === "number" ? number
+          : b instanceof color ? rgb$1
+          : (c = color(b)) ? (b = c, rgb$1)
+          : string)(a, b);
     }
 
     function attrRemove$1(name) {
@@ -4460,7 +4459,6 @@
         TreeOrientation["horizontal"] = "horizontal";
         TreeOrientation["vertical"] = "vertical";
     })(TreeOrientation || (TreeOrientation = {}));
-    //# sourceMappingURL=D3Tree.js.map
 
     // let data =
     // {
