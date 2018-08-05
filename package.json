@@ -1,0 +1,26 @@
+{
+  "name": "tree",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc && rollup -c",
+    "serve": "live-server src --port=8181",
+    "tsc:w": "tsc -w",
+    "rollup:w": "rollup -c -w"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "d3": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/d3": "^5.0.0",
+    "live-server": "^1.2.0",
+    "rollup": "^0.63.2",
+    "rollup-plugin-node-resolve": "^3.3.0",
+    "rollup-watch": "^4.3.1"
+  }
+}

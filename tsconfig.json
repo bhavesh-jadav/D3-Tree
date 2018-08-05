@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "noImplicitAny": false,
+        "target": "es5",
+        "sourceMap": true,
+        "module": "es2015",
+        "moduleResolution": "node",
+        "outDir": "./src/js",
+        "rootDir": "./src"
+    },
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}
