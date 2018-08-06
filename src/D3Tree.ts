@@ -1,7 +1,7 @@
 import { SVGUtils } from './Utils';
 import { linkHorizontal, linkVertical } from 'd3-shape'
 import { Selection, select, BaseType, event } from 'd3-selection'
-import { tree, hierarchy, TreeLayout, HierarchyPointNode, cluster, HierarchyPointLink} from 'd3-hierarchy'
+import { tree, hierarchy, TreeLayout, HierarchyPointNode, cluster, HierarchyPointLink, HierarchyNode} from 'd3-hierarchy'
 import { zoom, zoomIdentity } from 'd3-zoom'
 import { max } from 'd3-array';
 import * as d3_ease from 'd3-ease';
@@ -12,70 +12,138 @@ let Translate = SVGUtils.Translate;
 
 export class D3Tree {
 
-    private treeGroup: Selection<BaseType, any, any, any>;
-    private treeMap: TreeLayout<any>;
-    private treeData: HierarchyPointNode<any>;
-    private treeDataArray: HierarchyPointNode<any>[];
-    private treeDataLinks: HierarchyPointLink<any>[];
+    private nodeUID: number = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
+    private treeGroup: Selection<BaseType, any, any, any>; // Holds the parent group element of the tree.
+    private treeMap: TreeLayout<any>; // Holds defination of funtion to create tree layout based on given tree type, size and hierarhcy data.
+    private hierarchyData: HierarchyNode<any>; // Holds hierarchy data which gives information such as depth and height of the nodes and other info.
+    private treeData: HierarchyPointNode<any>; // Holds tree data created from treeMap and hierarchyData with info such as x and y coordinate of the node.
+    private treeDataArray: HierarchyPointNode<any>[]; // Holds nodes in form of array in chronological order from top to bottom.
+    private treeDataLinks: HierarchyPointLink<any>[]; // Holds defination of links between nodes.
+    private enableZoom: boolean = false; // enable zoom when there is no treeheight and width is provided.
+    private maxExpandedDepth: number;
+
+    /**
+     * 
+     * @param rootSVG Root SVG element where tree will be created
+     * @param data JSON Data in form of tree structure
+     * @param treeProperties TreeProperties object that specifies different properties and settings of the tree.
+     */
     constructor (private rootSVG: Selection<BaseType, any, any, any>, private data: any, private treeProperties: TreeProperties) { }
 
+    /**
+     * Call this funtion wich will create initial tree structure based on generalProperties specified in
+     * treeProperties in constructor
+     */
     CreateTree() {
-
         let generalProperties:TreeGeneralProperties = this.treeProperties.generalProperties;
 
+        // set maxExpandedDepth to defaultMaxDepth
+        this.maxExpandedDepth = generalProperties.defaultMaxDepth;
+
+        // Generate hierarchy data which gives depth, height and other info.
+        this.hierarchyData = hierarchy(this.data, (d: any) => {
+            return d.children;
+        });
+
+        /**
+         * Recursive funtion used to collapse tree nodes based on defaultMaxDepth property of generalSettings.
+         * @param d tree node
+         */
+        let collapseNodes = (d: any) => {
+            if(d.children && d.depth >= generalProperties.defaultMaxDepth) {
+                d._children = d.children
+                d._children.forEach(collapseNodes);
+                d.children = null
+            }
+        }
+        this.hierarchyData.each(collapseNodes); // collapse tree nodes based on DefaultMaxDepth
+
+        // add parent group for tree to rootSVG element.
         this.treeGroup = this.rootSVG
             .append('g')
             .classed('treeGroup', true);
 
-        if (generalProperties.treeHeight && generalProperties.treeWidth) {
-            this._createTreeData()
-        } else {
+        // only add zoom when no fixed treeheight and treewidth is provided.
+        if (generalProperties.treeHeight == undefined && generalProperties.treeWidth == undefined) {
+            this.enableZoom = true;
+        }
 
-            // if no height and width is provided than we calculate it according to the tree data.
+        // create tree data based on give data
+        // this._createTreeData();
 
-            // create treedata with dummy width and height
-            // TODO: Find a better way
-            generalProperties.treeHeight = 500;
-            generalProperties.treeWidth = 500;
-            this._createTreeData();
+        
 
-            let depthWiseChildrenCounts: number[] = [];
-            let maxTextLabelLength :number = 0;
+        this._updateTree();
+    }
 
-            this.treeDataArray.forEach(node => {
-                if (depthWiseChildrenCounts[node.depth] == undefined) {
-                    depthWiseChildrenCounts.push(0);
+    /**
+     * Updates the tree such as updating nodes, nodes shapes, node links etc.
+     */
+    private _updateTree() {
+        this._createTreeData();
+        this._createNodes();
+        // this._createNodeShape();
+        // this._createNodeLinks();
+        // this._createNodeText();
+    }
+
+    /**
+     * Creates D3 tree data based on json data provided in constructor
+     */
+    private _createTreeData() {
+
+        let generalProperties:TreeGeneralProperties = this.treeProperties.generalProperties;
+
+        // if zoom is enabled that means no treeheight or treewidth is provided
+        // than we calculate it according to the tree data.
+        if (this.enableZoom) {
+            
+            // Find depth wise max children count to calculate proper tree height.
+            // base code credit: http://bl.ocks.org/robschmuecker/7880033
+            let depthWiseChildrenCount: number[] = [1];
+            let countDepthwiseChildren = (level: number, node: any) => {
+                if (node.children && node.children.length > 0 && level < this.maxExpandedDepth) {
+                    if (depthWiseChildrenCount.length <= level + 1) depthWiseChildrenCount.push(0);
+                    depthWiseChildrenCount[level + 1] += node.children.length;
+                    node.children.forEach((d) => {
+                        countDepthwiseChildren(level + 1, d);
+                    });
                 }
-                depthWiseChildrenCounts[node.depth] += 1;
-                maxTextLabelLength = Math.max(maxTextLabelLength, node.data.name.length);
-            });
+            };
+            countDepthwiseChildren(0, this.hierarchyData);
 
-            let treeHeight = max(depthWiseChildrenCounts) * 35;
+            // Find longest text present in tree calculate proper spacing between nodes.
+            let maxTextLabelLength = 0;
+            let findMaxLabelLength = (level: number, node: any) => {
+                if (node.children && node.children.length > 0 && level < this.maxExpandedDepth) {
+                    if (level < generalProperties.defaultMaxDepth) {
+                        node.children.forEach((element) => {
+                            findMaxLabelLength(level + 1, element);
+                        });
+                    }
+                }
+                maxTextLabelLength = Math.max(node.data.name.length, maxTextLabelLength);
+            };
+            findMaxLabelLength(0, this.hierarchyData);
+
+            let treeHeight = max(depthWiseChildrenCount) * 35;
             //TODO: change tree width based on actual width in px of label with max length.
-            let treeWidth = maxTextLabelLength * depthWiseChildrenCounts.length * 10;
+            let treeWidth = maxTextLabelLength * depthWiseChildrenCount.length * 10;
 
             // create tree data with calculated height and width
             generalProperties.treeHeight = treeHeight;
             generalProperties.treeWidth = treeWidth;
-            this._createTreeData();
 
+            // adding zoom to tree.
             let minZoomScale = Math.min(
-                generalProperties.containerHeight / treeHeight,
-                generalProperties.containerWidth / treeWidth
+                generalProperties.containerHeight / generalProperties.treeHeight,
+                generalProperties.containerWidth / generalProperties.treeWidth
             );
-
-            // console.log(minZoomScale);
-
-            // console.log(treeGeneralProperties.containerHeight, treeHeight);
-            // console.log(treeGeneralProperties.containerWidth, treeWidth);
-            
-
             // zoom will chnage transform of group element which is child of root SVG and parent of tree
             let treeGroupZoomAction = (d, i, elements) => {
                 select(elements[i]).select('.treeGroup').attr('transform', event.transform);
             }
-
-            // listner will be attached to root SVG
+            // listner will be attached to root SVG.
             let rootSVGZoomHandler = zoom().scaleExtent([minZoomScale - (minZoomScale * 0.05), 3])
                 .on('zoom', treeGroupZoomAction)
                 .filter(function(){
@@ -84,24 +152,8 @@ export class D3Tree {
                         event instanceof WheelEvent
                     );
                 });
-
             this.rootSVG.call(rootSVGZoomHandler);
         }
-
-        this._updateTree();
-    }
-
-    private _updateTree() {
-        this._createTreeStructure();
-        this._createTreeStructure();
-        this._createNodeShape();
-        this._createNodeLinks();
-        this._createNodeText();
-    }
-
-    private _createTreeData() {
-
-        let generalProperties:TreeGeneralProperties = this.treeProperties.generalProperties;
 
         if (generalProperties.isClusterLayout) {
             this.treeMap =  cluster().size([generalProperties.treeHeight, generalProperties.treeWidth]);
@@ -109,38 +161,26 @@ export class D3Tree {
             this.treeMap =  tree().size([generalProperties.treeHeight, generalProperties.treeWidth]);
         }
 
-        let hierarchyData = hierarchy(this.data, (d: any) => {
-            return d.children;
-        });
-
-        let collapseNodes = (d: any) => {
-            if(d.children && d.depth >= generalProperties.defaultMaxDepth - 1) {
-                d._children = d.children
-                d._children.forEach(collapseNodes);
-                d.children = null
-            }
-        }
-
-        hierarchyData.each(collapseNodes);
-
-        this.treeData = this.treeMap(hierarchyData);
+        // get final data
+        this.treeData = this.treeMap(this.hierarchyData);
         this.treeDataArray = this.treeData.descendants();
         this.treeDataLinks = this.treeData.links();
+
     }
 
-    private _createTreeStructure() {
+    private _createNodes() {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let i = 0;
-        
-        let node = this.treeGroup.selectAll('g.node')
+        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+
+        let nodes = this.treeGroup.selectAll('g.node')
         .data(this.treeDataArray, (d: any) => {
-            return (d.id || (d.id = ++i));
+            return (d.id || (d.id = ++this.nodeUID));
         });
 
-        let nodeEnter = node.enter()
+        let nodeEnter = nodes.enter()
             .append('g')
             .classed('node', true)
-            .attr('transform', (d: any) => {
+            .attr('transform', (d: HierarchyPointNode<any>) => {
                 if (generalProperties.orientaion == TreeOrientation.horizontal) {
                     return Translate(d.y, d.x);
                 } else {
@@ -148,21 +188,27 @@ export class D3Tree {
                 }
             });
 
-        console.log(node);
-        console.log(nodeEnter);
+        let nodeUpdate = nodeEnter.merge(nodes);
 
-        let nodeUpdate = nodeEnter.merge(node);
-        let nodeExit = node.exit().remove();
+        nodeUpdate.transition()
+        .duration(1000)
+        .attr('transform', (d: HierarchyPointNode<any>) => {
+            if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                return Translate(d.y, d.x);
+            } else {
+                return Translate(d.x, d.y);
+            }
+        })
 
-        console.log(nodeExit);
-    }
+        let nodeExit = nodes.exit()
+            .attr('opacity', 1)
+            .transition()
+            .duration(1500)
+            .ease(d3_ease.easeCubicOut)
+            .attr('opacity', 0)
+            .remove();
 
-    private _createNodeShape() {
 
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-
-        let nodeEnter: d3.Selection<d3.BaseType, any, any, any>;
-        nodeEnter = this.treeGroup.selectAll('g.node');
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
             nodeEnter.append('circle')
                 .attr('r', nodeShapeProperties.size)
@@ -184,9 +230,11 @@ export class D3Tree {
             if (d.children) {
                 d._children = d.children;
                 d.children = null;
+                this.maxExpandedDepth = d.depth;
             } else {
                 d.children = d._children;
                 d._children = null;
+                this.maxExpandedDepth = d.depth + 1;
             }
             this._updateTree();
         }
@@ -205,9 +253,69 @@ export class D3Tree {
             .text((d: any) => {
                 return d.data.name;
             });
-        this._updateTreeGroupTransform(nodeShapeProperties.size + 5, 0);
+
+        // console.log(node);
+        // console.log(this.treeDataArray);
 
     }
+
+    // private _createNodeShape() {
+
+    //     let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+
+    //     let nodeShapeEnter: d3.Selection<d3.BaseType, any, any, any>;
+    //     let node = this.treeGroup.selectAll('g.node')
+    //         // .data(this.treeDataArray, (d: any) => {
+    //         //     return (d.id);
+    //         // });
+
+    //     console.log(node);
+
+    //     if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
+    //         nodeShapeEnter = node.append('circle')
+    //             .attr('r', nodeShapeProperties.size)
+    //             .attr('fill', nodeShapeProperties.fill)
+    //             .attr('stroke', nodeShapeProperties.stroke);
+    //     } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.square) {
+    //         nodeShapeEnter = node.append('rect')
+    //             .attr('transform', (d: any) => {
+    //                 let diff = 0 - nodeShapeProperties.size / 2;
+    //                 return Translate(diff, diff);
+    //             })
+    //             .attr('height', nodeShapeProperties.size)
+    //             .attr('width', nodeShapeProperties.size)
+    //             .attr('fill', nodeShapeProperties.fill)
+    //             .attr('stroke', nodeShapeProperties.stroke);
+    //     }
+
+    //     let click = (d: any) => {
+    //         if (d.children) {
+    //             d._children = d.children;
+    //             d.children = null;
+    //         } else {
+    //             d.children = d._children;
+    //             d._children = null;
+    //         }
+    //         this._updateTree();
+    //     }
+
+    //     nodeShapeEnter.on('click', click);
+
+    //     if (nodeShapeProperties.animation) {
+    //         nodeShapeEnter.attr('opacity', 0)
+    //             .transition()
+    //             .duration(1500)
+    //             .ease(d3_ease.easeCubicOut)
+    //             .attr('opacity', 1);
+    //     }
+
+    //     nodeShapeEnter.append('title')
+    //         .text((d: any) => {
+    //             return d.data.name;
+    //         });
+    //     this._updateTreeGroupTransform(nodeShapeProperties.size + 5, 0);
+
+    // }
 
     private _createNodeLinks() {
 
