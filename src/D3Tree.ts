@@ -12,7 +12,6 @@ let Translate = SVGUtils.Translate;
 
 export class D3Tree {
 
-    private nodeUID: number = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
     private treeGroup: Selection<BaseType, any, any, any>; // Holds the parent group element of the tree.
     private treeMap: TreeLayout<any>; // Holds defination of funtion to create tree layout based on given tree type, size and hierarhcy data.
     private hierarchyData: HierarchyNode<any>; // Holds hierarchy data which gives information such as depth and height of the nodes and other info.
@@ -71,8 +70,6 @@ export class D3Tree {
         // create tree data based on give data
         // this._createTreeData();
 
-        
-
         this._updateTree();
     }
 
@@ -82,8 +79,7 @@ export class D3Tree {
     private _updateTree() {
         this._createTreeData();
         this._createNodes();
-        // this._createNodeShape();
-        // this._createNodeLinks();
+        this._createNodeLinks();
         // this._createNodeText();
     }
 
@@ -165,16 +161,16 @@ export class D3Tree {
         this.treeData = this.treeMap(this.hierarchyData);
         this.treeDataArray = this.treeData.descendants();
         this.treeDataLinks = this.treeData.links();
-
     }
 
     private _createNodes() {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
 
+        let nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
         let nodes = this.treeGroup.selectAll('g.node')
         .data(this.treeDataArray, (d: any) => {
-            return (d.id || (d.id = ++this.nodeUID));
+            return (d.id || (d.id = ++nodeUID));
         });
 
         let nodeEnter = nodes.enter()
@@ -259,64 +255,6 @@ export class D3Tree {
 
     }
 
-    // private _createNodeShape() {
-
-    //     let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-
-    //     let nodeShapeEnter: d3.Selection<d3.BaseType, any, any, any>;
-    //     let node = this.treeGroup.selectAll('g.node')
-    //         // .data(this.treeDataArray, (d: any) => {
-    //         //     return (d.id);
-    //         // });
-
-    //     console.log(node);
-
-    //     if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-    //         nodeShapeEnter = node.append('circle')
-    //             .attr('r', nodeShapeProperties.size)
-    //             .attr('fill', nodeShapeProperties.fill)
-    //             .attr('stroke', nodeShapeProperties.stroke);
-    //     } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.square) {
-    //         nodeShapeEnter = node.append('rect')
-    //             .attr('transform', (d: any) => {
-    //                 let diff = 0 - nodeShapeProperties.size / 2;
-    //                 return Translate(diff, diff);
-    //             })
-    //             .attr('height', nodeShapeProperties.size)
-    //             .attr('width', nodeShapeProperties.size)
-    //             .attr('fill', nodeShapeProperties.fill)
-    //             .attr('stroke', nodeShapeProperties.stroke);
-    //     }
-
-    //     let click = (d: any) => {
-    //         if (d.children) {
-    //             d._children = d.children;
-    //             d.children = null;
-    //         } else {
-    //             d.children = d._children;
-    //             d._children = null;
-    //         }
-    //         this._updateTree();
-    //     }
-
-    //     nodeShapeEnter.on('click', click);
-
-    //     if (nodeShapeProperties.animation) {
-    //         nodeShapeEnter.attr('opacity', 0)
-    //             .transition()
-    //             .duration(1500)
-    //             .ease(d3_ease.easeCubicOut)
-    //             .attr('opacity', 1);
-    //     }
-
-    //     nodeShapeEnter.append('title')
-    //         .text((d: any) => {
-    //             return d.data.name;
-    //         });
-    //     this._updateTreeGroupTransform(nodeShapeProperties.size + 5, 0);
-
-    // }
-
     private _createNodeLinks() {
 
         let nodeLinkProperties: TreeNodeLinkProperties = this.treeProperties.nodeLinkProperties;
@@ -350,13 +288,15 @@ export class D3Tree {
                 "V" + target.y;
         }
 
-        let links: d3.Selection<d3.BaseType, any, any, any> = this.treeGroup.selectAll('path.link')
-            .data(this.treeDataLinks)
-            .enter()
-            .insert("g", "g")   //will insert path before g elements
-            .classed('link', true);
-
-        links.append('path')
+        let nodeLinkUID = 0;
+        let nodeLinks: d3.Selection<d3.BaseType, any, any, any> = this.treeGroup.selectAll('path.link')
+            .data(this.treeDataLinks, (d: any) => {
+                return (d.id || (d.id = ++nodeLinkUID));
+            });
+            
+        let nodeLinksEnter = nodeLinks.enter()
+            .insert("path", "g")   //will insert path before g elements
+            .classed('link', true)
             .attr('fill', 'none')
             .attr('stroke', nodeLinkProperties.stroke)
             .attr('stroke-width', nodeLinkProperties.strokeWidth)
@@ -383,7 +323,7 @@ export class D3Tree {
             });
 
         if (nodeLinkProperties.animation) {
-            links.selectAll('path').each((d, i, elements) => {
+            nodeLinksEnter.each((d, i, elements) => {
                 let linkLength = (elements[i] as any).getTotalLength();
                 select(elements[i])
                     .attr('stroke-dasharray', linkLength + " " + linkLength)
@@ -395,7 +335,50 @@ export class D3Tree {
             });
         }
 
-        links.append('title')
+        let nodeLinksUpdate = nodeLinksEnter.merge(nodeLinks);
+
+        nodeLinksUpdate.transition()
+            .attr('stroke-dasharray', '')
+            .attr("stroke-dashoffset", 0)
+            .duration(1000)
+            .attr('d', (d: any) => {
+                if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalCurveLink(d) as any
+                    } else {
+                        return verticalCurveLink(d) as any
+                    }
+                } else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalStraightLink(d.source, d.target);
+                    } else {
+                        return verticalStraightLink(d.source, d.target);
+                    }
+                } else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalSquareLink(d.source, d.target);
+                    } else {
+                        return verticalSquareLink(d.source, d.target);
+                    }
+                }
+            });
+
+        let nodeLinksExit = nodeLinks.exit()
+            .each((d, i, elements) => {
+                let linkLength = (elements[i] as any).getTotalLength();
+                select(elements[i])
+                    .attr('stroke-dasharray', linkLength + " " + linkLength)
+                    .attr("stroke-dashoffset", 0)
+                    .attr('opacity', 1)
+                    .transition()
+                    .duration(1000)
+                    .ease(d3_ease.easeCubicIn)
+                    .attr("stroke-dashoffset", linkLength)
+                    .attr('opacity', 0)
+                    .remove();
+            });
+
+        nodeLinksEnter.append('title')
             .text((d: any) => {
                 return d.source.data.name + " -> " + d.target.data.name;
             });

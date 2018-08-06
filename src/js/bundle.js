@@ -4157,7 +4157,6 @@
             this.rootSVG = rootSVG;
             this.data = data;
             this.treeProperties = treeProperties;
-            this.nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
             this.enableZoom = false; // enable zoom when there is no treeheight and width is provided.
         }
         /**
@@ -4202,8 +4201,7 @@
         D3Tree.prototype._updateTree = function () {
             this._createTreeData();
             this._createNodes();
-            // this._createNodeShape();
-            // this._createNodeLinks();
+            this._createNodeLinks();
             // this._createNodeText();
         };
         /**
@@ -4278,9 +4276,10 @@
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
             var nodes = this.treeGroup.selectAll('g.node')
                 .data(this.treeDataArray, function (d) {
-                return (d.id || (d.id = ++_this.nodeUID));
+                return (d.id || (d.id = ++nodeUID));
             });
             var nodeEnter = nodes.enter()
                 .append('g')
@@ -4356,54 +4355,6 @@
             // console.log(node);
             // console.log(this.treeDataArray);
         };
-        // private _createNodeShape() {
-        //     let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        //     let nodeShapeEnter: d3.Selection<d3.BaseType, any, any, any>;
-        //     let node = this.treeGroup.selectAll('g.node')
-        //         // .data(this.treeDataArray, (d: any) => {
-        //         //     return (d.id);
-        //         // });
-        //     console.log(node);
-        //     if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-        //         nodeShapeEnter = node.append('circle')
-        //             .attr('r', nodeShapeProperties.size)
-        //             .attr('fill', nodeShapeProperties.fill)
-        //             .attr('stroke', nodeShapeProperties.stroke);
-        //     } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.square) {
-        //         nodeShapeEnter = node.append('rect')
-        //             .attr('transform', (d: any) => {
-        //                 let diff = 0 - nodeShapeProperties.size / 2;
-        //                 return Translate(diff, diff);
-        //             })
-        //             .attr('height', nodeShapeProperties.size)
-        //             .attr('width', nodeShapeProperties.size)
-        //             .attr('fill', nodeShapeProperties.fill)
-        //             .attr('stroke', nodeShapeProperties.stroke);
-        //     }
-        //     let click = (d: any) => {
-        //         if (d.children) {
-        //             d._children = d.children;
-        //             d.children = null;
-        //         } else {
-        //             d.children = d._children;
-        //             d._children = null;
-        //         }
-        //         this._updateTree();
-        //     }
-        //     nodeShapeEnter.on('click', click);
-        //     if (nodeShapeProperties.animation) {
-        //         nodeShapeEnter.attr('opacity', 0)
-        //             .transition()
-        //             .duration(1500)
-        //             .ease(d3_ease.easeCubicOut)
-        //             .attr('opacity', 1);
-        //     }
-        //     nodeShapeEnter.append('title')
-        //         .text((d: any) => {
-        //             return d.data.name;
-        //         });
-        //     this._updateTreeGroupTransform(nodeShapeProperties.size + 5, 0);
-        // }
         D3Tree.prototype._createNodeLinks = function () {
             var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
             var generalProperties = this.treeProperties.generalProperties;
@@ -4432,12 +4383,14 @@
                     "H" + target.x +
                     "V" + target.y;
             };
-            var links = this.treeGroup.selectAll('path.link')
-                .data(this.treeDataLinks)
-                .enter()
-                .insert("g", "g") //will insert path before g elements
-                .classed('link', true);
-            links.append('path')
+            var nodeLinkUID = 0;
+            var nodeLinks = this.treeGroup.selectAll('path.link')
+                .data(this.treeDataLinks, function (d) {
+                return (d.id || (d.id = ++nodeLinkUID));
+            });
+            var nodeLinksEnter = nodeLinks.enter()
+                .insert("path", "g") //will insert path before g elements
+                .classed('link', true)
                 .attr('fill', 'none')
                 .attr('stroke', nodeLinkProperties.stroke)
                 .attr('stroke-width', nodeLinkProperties.strokeWidth)
@@ -4468,7 +4421,7 @@
                 }
             });
             if (nodeLinkProperties.animation) {
-                links.selectAll('path').each(function (d, i, elements) {
+                nodeLinksEnter.each(function (d, i, elements) {
                     var linkLength = elements[i].getTotalLength();
                     select(elements[i])
                         .attr('stroke-dasharray', linkLength + " " + linkLength)
@@ -4479,7 +4432,52 @@
                         .attr("stroke-dashoffset", 0);
                 });
             }
-            links.append('title')
+            var nodeLinksUpdate = nodeLinksEnter.merge(nodeLinks);
+            nodeLinksUpdate.transition()
+                .attr('stroke-dasharray', '')
+                .attr("stroke-dashoffset", 0)
+                .duration(1000)
+                .attr('d', function (d) {
+                if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalCurveLink(d);
+                    }
+                    else {
+                        return verticalCurveLink(d);
+                    }
+                }
+                else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalStraightLink(d.source, d.target);
+                    }
+                    else {
+                        return verticalStraightLink(d.source, d.target);
+                    }
+                }
+                else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
+                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
+                        return horizontalSquareLink(d.source, d.target);
+                    }
+                    else {
+                        return verticalSquareLink(d.source, d.target);
+                    }
+                }
+            });
+            var nodeLinksExit = nodeLinks.exit()
+                .each(function (d, i, elements) {
+                var linkLength = elements[i].getTotalLength();
+                select(elements[i])
+                    .attr('stroke-dasharray', linkLength + " " + linkLength)
+                    .attr("stroke-dashoffset", 0)
+                    .attr('opacity', 1)
+                    .transition()
+                    .duration(1000)
+                    .ease(cubicIn)
+                    .attr("stroke-dashoffset", linkLength)
+                    .attr('opacity', 0)
+                    .remove();
+            });
+            nodeLinksEnter.append('title')
                 .text(function (d) {
                 return d.source.data.name + " -> " + d.target.data.name;
             });
