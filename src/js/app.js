@@ -417,7 +417,8 @@ var treeGeneralProperties = {
 var treeNodeShapeProperties = {
     'shapeType': TreeNodeShapeTypes.circle,
     'size': 5,
-    'fill': 'red',
+    'expandedNodeColor': 'red',
+    'collapsedNodeColor': 'green',
     'stroke': 'none',
     'strokeWidth': 0,
     'animation': true
