@@ -4315,7 +4315,7 @@
                     _this.maxExpandedDepth = max$1(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
                 }
                 _this._updateTree();
-                // this._centerNode(node);
+                _this._centerNode(node);
             };
             var nodeEnter = nodes.enter()
                 .append('g')
@@ -4623,7 +4623,6 @@
         TreeOrientation["horizontal"] = "horizontal";
         TreeOrientation["vertical"] = "vertical";
     })(TreeOrientation || (TreeOrientation = {}));
-    //# sourceMappingURL=D3Tree.js.map
 
     // let data =
     // {
@@ -5075,5 +5074,6 @@
     // d3Tree.CreateNodeLinks(treeNodeLinkProperties, treeGeneralProperties);
     // //adding node texts
     // d3Tree.CreateNodeText(treeGeneralProperties, treeNodeShapeProperties, treeNodeTextProperties);
+    //# sourceMappingURL=app.js.map
 
 })));

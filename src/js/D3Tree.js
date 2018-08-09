@@ -175,7 +175,7 @@ var D3Tree = /** @class */ (function () {
                 _this.maxExpandedDepth = max(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
             }
             _this._updateTree();
-            // this._centerNode(node);
+            _this._centerNode(node);
         };
         var nodeEnter = nodes.enter()
             .append('g')

@@ -208,7 +208,7 @@ export class D3Tree {
                 this.maxExpandedDepth = max(this.hierarchyData.leaves().map((node) => { return node.depth }));
             }
             this._updateTree();
-            // this._centerNode(node);
+            this._centerNode(node);
         }
 
         let nodeEnter = nodes.enter()
