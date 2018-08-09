@@ -3642,6 +3642,12 @@
 
     var identity$2 = new Transform(1, 0, 0);
 
+    transform.prototype = Transform.prototype;
+
+    function transform(node) {
+      return node.__zoom || identity$2;
+    }
+
     function nopropagation$1() {
       event.stopImmediatePropagation();
     }
@@ -4253,17 +4259,24 @@
                 generalProperties.treeWidth = treeWidth;
                 // adding zoom to tree.
                 var minZoomScale = Math.min(generalProperties.containerHeight / generalProperties.treeHeight, generalProperties.containerWidth / generalProperties.treeWidth);
+                minZoomScale = minZoomScale - (minZoomScale * 0.05);
                 // zoom will chnage transform of group element which is child of root SVG and parent of tree
-                var treeGroupZoomAction = function (d, i, elements) {
-                    select(elements[i]).select('.treeGroup').attr('transform', event.transform);
+                var treeGroupZoomAction = function () {
+                    _this.treeGroup.attr('transform', event.transform);
                 };
+                // settings max translate extent for zooming
+                var maxTranslateX = generalProperties.containerWidth - (generalProperties.treeWidth * minZoomScale);
+                var maxTranslateY = generalProperties.containerHeight - (generalProperties.treeHeight * minZoomScale);
                 // listner will be attached to root SVG.
-                this.rootSVGZoomListner = zoom().scaleExtent([minZoomScale - (minZoomScale * 0.05), 3])
+                this.rootSVGZoomListner = zoom().scaleExtent([minZoomScale, 3])
+                    // .translateExtent([[0, 0], [generalProperties.containerWidth, generalProperties.containerHeight]])
                     .on('zoom', treeGroupZoomAction)
                     .filter(function () {
                     return (event.button == 1 ||
                         event instanceof WheelEvent);
                 });
+                // this.treeGroup.attr('transform', 'scale(' + minZoomScale + ')');
+                // this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListner.transform as any, zoomIdentity.scale(minZoomScale));
                 this.rootSVG.call(this.rootSVGZoomListner);
             }
             if (generalProperties.isClusterLayout) {
@@ -4276,6 +4289,7 @@
             this.treeData = this.treeMap(this.hierarchyData);
             this.treeDataArray = this.treeData.descendants();
             this.treeDataLinks = this.treeData.links();
+            // console.log(generalProperties.treeHeight, generalProperties.treeWidth);
         };
         D3Tree.prototype._createNodes = function () {
             var _this = this;
@@ -4286,21 +4300,22 @@
                 .data(this.treeDataArray, function (d) {
                 return (d.id || (d.id = ++nodeUID));
             });
-            var click = function (d) {
+            var click = function (node) {
                 // collapse
-                if (d.children) {
-                    d._children = d.children;
-                    d.children = null;
+                if (node.children) {
+                    node._children = node.children;
+                    node.children = null;
                 }
                 else { //expand
-                    d.children = d._children;
-                    d._children = null;
+                    node.children = node._children;
+                    node._children = null;
                 }
                 if (_this.dynamicHeightAndWidth) {
                     // finding maximum expanded depth for dynamic height calculation.
                     _this.maxExpandedDepth = max$1(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
                 }
                 _this._updateTree();
+                // this._centerNode(node);
             };
             var nodeEnter = nodes.enter()
                 .append('g')
@@ -4375,6 +4390,17 @@
                 });
                 nodes.exit().remove();
             }
+        };
+        D3Tree.prototype._centerNode = function (node) {
+            var t = transform(this.rootSVG.node());
+            var x = -node.y;
+            var y = -node.x;
+            console.log(node);
+            console.log(x, y, t.k);
+            x = x * t.k + this.treeProperties.generalProperties.containerWidth / 2;
+            y = y * t.k + this.treeProperties.generalProperties.containerHeight / 2;
+            console.log(x, y, t.k);
+            this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListner.transform, identity$2.translate(x, y).scale(t.k));
         };
         D3Tree.prototype._createNodeLinks = function () {
             var _this = this;
@@ -4488,13 +4514,13 @@
         D3Tree.prototype._createNodeText = function () {
             var generalProperties = this.treeProperties.generalProperties;
             if (generalProperties.orientaion == TreeOrientation.vertical) {
-                this._createNodeTextVertical();
+                this._createNodeTextForVerticalTree();
             }
             else {
-                this._createNodeTextHorizontal();
+                this._createNodeTextForHorizontalTree();
             }
         };
-        D3Tree.prototype._createNodeTextVertical = function () {
+        D3Tree.prototype._createNodeTextForVerticalTree = function () {
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
             var nodeTextProperties = this.treeProperties.nodeTextProperties;
             var nodeTexts = this.treeGroup.selectAll('text.nodeText')
@@ -4532,7 +4558,7 @@
                 });
             }
         };
-        D3Tree.prototype._createNodeTextHorizontal = function () {
+        D3Tree.prototype._createNodeTextForHorizontalTree = function () {
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
             var nodeTextProperties = this.treeProperties.nodeTextProperties;
             var nodeTexts = this.treeGroup.selectAll('text.nodeText')
@@ -4597,6 +4623,7 @@
         TreeOrientation["horizontal"] = "horizontal";
         TreeOrientation["vertical"] = "vertical";
     })(TreeOrientation || (TreeOrientation = {}));
+    //# sourceMappingURL=D3Tree.js.map
 
     // let data =
     // {
@@ -5048,6 +5075,5 @@
     // d3Tree.CreateNodeLinks(treeNodeLinkProperties, treeGeneralProperties);
     // //adding node texts
     // d3Tree.CreateNodeText(treeGeneralProperties, treeNodeShapeProperties, treeNodeTextProperties);
-    //# sourceMappingURL=app.js.map
 
 })));
