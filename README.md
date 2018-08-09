@@ -44,7 +44,7 @@ Modify `D3Tree.ts`,`app.ts` and `index.html` to make the changes to the tree.
 
 * [D3](https://d3js.org/) - Visualization library
 * [rollup.js](https://rollupjs.org) - Module bundler
-* [liver-server](https://www.npmjs.com/package/live-server) - For local server
+* [live-server](https://www.npmjs.com/package/live-server) - For local server
 
 ## License
 
