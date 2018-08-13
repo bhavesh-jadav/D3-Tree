@@ -413,7 +413,7 @@ let rootSVG = select('body')
     .style('background-color', '#F2F2F2');
 
 let treeGeneralProperties: TreeGeneralProperties = {
-    'orientaion': TreeOrientation.horizontal,
+    'orientation': TreeOrientation.horizontal,
     'defaultMaxDepth': 1, // n - 1 depth
     'isClusterLayout': false,
     'containerHeight': height,
@@ -425,8 +425,8 @@ let treeNodeShapeProperties: TreeNodeShapeProperties = {
     'size': 5,
     'expandedNodeColor': 'red',
     'collapsedNodeColor': 'green',
-    'stroke': 'none',
-    'strokeWidth': 0,
+    'stroke': 'pink',
+    'strokeWidth': 2,
     'animation': true
 }
 
@@ -441,7 +441,7 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
     'fontFamily': 'Arial',
     'fontSize': '20px',
     'foregroundColor': 'black',
-    'enableBackground': false,
+    'showBackground': true,
     'backgroundColor': '#7fa7e8'
 }
 
