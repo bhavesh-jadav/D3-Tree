@@ -1,6 +1,10 @@
-import { D3Tree, TreeNodeShapeProperties, TreeNodeShapeTypes, TreeGeneralProperties, TreeOrientation, TreeNodeLinkProperties, TreeNodeLinkTypes, TreeNodeTextProperties, TreeProperties } from './D3Tree';
+import { 
+    TreeGeneralProperties, TreeNodeLinkProperties, TreeNodeTextProperties, TreeProperties,
+    TreeNodeShapeProperties, TreeNodeShapeTypes, TreeOrientation, TreeNodeLinkTypes
+} from './D3TreeInterfaces';
+import { D3Tree } from './D3Tree';
 import { select } from 'd3-selection'
- 
+
 // let data =
 // {
 //     "name": "Top Level",
@@ -414,7 +418,7 @@ let rootSVG = select('body')
 
 let treeGeneralProperties: TreeGeneralProperties = {
     'orientation': TreeOrientation.horizontal,
-    'defaultMaxDepth': 1, // n - 1 depth
+    'defaultMaxDepth': 2, // n - 1 depth
     'isClusterLayout': false,
     'containerHeight': height,
     'containerWidth': width
@@ -422,7 +426,7 @@ let treeGeneralProperties: TreeGeneralProperties = {
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
     'shapeType' : TreeNodeShapeTypes.circle,
-    'size': 5,
+    'size': 10,
     'expandedNodeColor': 'red',
     'collapsedNodeColor': 'green',
     'stroke': 'pink',
@@ -442,7 +446,10 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
     'fontSize': '20px',
     'foregroundColor': 'black',
     'showBackground': true,
-    'backgroundColor': '#7fa7e8'
+    'backgroundColor': 'pink',
+    'maxAllowedWidth': 100,
+    'textPadding': 20,
+    'spaceBetweenNodeAndText': 5
 }
 
 let treeProperties: TreeProperties = {

@@ -1,16 +1,28 @@
 
 export module SVGUtils {
+
+    let svgElement: SVGElement;
+    let svgTextElement: SVGTextElement;
+
+
     export function Translate(x: number, y: number) {
         return 'translate(' + x + ', ' + y + ')';
+    }
+
+    function createDOM() {
+        if (svgElement) {
+            svgElement.parentElement.removeChild(svgElement);
+        }
+        svgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svgTextElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        svgElement.appendChild(svgTextElement);
+        document.body.appendChild(svgElement);
     }
 
     // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
     export function MeasureTextSize(textProperties: TextProperties, text?: string) {
 
-        const svgElement: SVGElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        let svgTextElement: SVGTextElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        svgElement.appendChild(svgTextElement);
-        document.body.appendChild(svgElement);
+        createDOM();
 
         svgTextElement.setAttribute("style", null);
 
@@ -27,8 +39,68 @@ export module SVGUtils {
         // We're expecting the browser to give a synchronous measurement here
         // We're using SVGTextElement because it works across all browsers
         let  textSize = svgTextElement.getBBox();
-        svgElement.parentElement.removeChild(svgElement);
         return textSize;
+    }
+
+    // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
+    export function GetTailoredTextOrDefault(textProperties: TextProperties, maxWidth: number): string {
+        let ellipsis = '...';
+        createDOM();
+
+        let strLength: number = textProperties.text.length;
+
+        if (strLength === 0) {
+            return textProperties.text;
+        }
+
+        let width: number = MeasureTextSize(textProperties).width;
+
+        if (width < maxWidth) {
+            return textProperties.text;
+        }
+
+        // Create a copy of the textProperties so we don't modify the one that's passed in.
+        // let copiedTextProperties = Prototype.inherit(textProperties);
+
+        // Take the properties and apply them to svgTextElement
+        // Then, do the binary search to figure out the substring we want
+        // Set the substring on textElement argument
+        let text = textProperties.text = ellipsis + textProperties.text;
+
+        let min = 1;
+        let max = text.length;
+        let i = ellipsis.length;
+
+        while (min <= max) {
+            // num | 0 prefered to Math.floor(num) for performance benefits
+            i = (min + max) / 2 | 0;
+
+            textProperties.text = text.substr(0, i);
+            width = MeasureTextSize(textProperties).width;
+
+            if (maxWidth > width) {
+                min = i + 1;
+            } else if (maxWidth < width) {
+                max = i - 1;
+            } else {
+                break;
+            }
+        }
+
+        // Since the search algorithm almost never finds an exact match,
+        // it will pick one of the closest two, which could result in a
+        // value bigger with than 'maxWidth' thus we need to go back by
+        // one to guarantee a smaller width than 'maxWidth'.
+        textProperties.text = text.substr(0, i);
+        width = MeasureTextSize(textProperties).width;
+        if (width > maxWidth) {
+            i--;
+        }
+
+        // console.log(textProperties.text, width);
+        
+
+        return text.substr(ellipsis.length, i - ellipsis.length) + ellipsis;
     }
 }
 
