@@ -4,14 +4,637 @@
     (factory());
 }(this, (function () { 'use strict';
 
-    var SVGUtils = /** @class */ (function () {
-        function SVGUtils() {
+    // interfaces
+    //enums
+    var TreeNodeShapeTypes;
+    (function (TreeNodeShapeTypes) {
+        TreeNodeShapeTypes["circle"] = "circle";
+        TreeNodeShapeTypes["rect"] = "rect";
+    })(TreeNodeShapeTypes || (TreeNodeShapeTypes = {}));
+    var TreeNodeLinkTypes;
+    (function (TreeNodeLinkTypes) {
+        TreeNodeLinkTypes["straight"] = "straight";
+        TreeNodeLinkTypes["curved"] = "curved";
+        TreeNodeLinkTypes["corner"] = "corner";
+    })(TreeNodeLinkTypes || (TreeNodeLinkTypes = {}));
+    var TreeOrientation;
+    (function (TreeOrientation) {
+        TreeOrientation["horizontal"] = "horizontal";
+        TreeOrientation["vertical"] = "vertical";
+    })(TreeOrientation || (TreeOrientation = {}));
+    //# sourceMappingURL=D3TreeInterfaces.js.map
+
+    function defaultSeparation(a, b) {
+      return a.parent === b.parent ? 1 : 2;
+    }
+
+    function meanX(children) {
+      return children.reduce(meanXReduce, 0) / children.length;
+    }
+
+    function meanXReduce(x, c) {
+      return x + c.x;
+    }
+
+    function maxY(children) {
+      return 1 + children.reduce(maxYReduce, 0);
+    }
+
+    function maxYReduce(y, c) {
+      return Math.max(y, c.y);
+    }
+
+    function leafLeft(node) {
+      var children;
+      while (children = node.children) node = children[0];
+      return node;
+    }
+
+    function leafRight(node) {
+      var children;
+      while (children = node.children) node = children[children.length - 1];
+      return node;
+    }
+
+    function cluster() {
+      var separation = defaultSeparation,
+          dx = 1,
+          dy = 1,
+          nodeSize = false;
+
+      function cluster(root) {
+        var previousNode,
+            x = 0;
+
+        // First walk, computing the initial x & y values.
+        root.eachAfter(function(node) {
+          var children = node.children;
+          if (children) {
+            node.x = meanX(children);
+            node.y = maxY(children);
+          } else {
+            node.x = previousNode ? x += separation(node, previousNode) : 0;
+            node.y = 0;
+            previousNode = node;
+          }
+        });
+
+        var left = leafLeft(root),
+            right = leafRight(root),
+            x0 = left.x - separation(left, right) / 2,
+            x1 = right.x + separation(right, left) / 2;
+
+        // Second walk, normalizing x & y to the desired size.
+        return root.eachAfter(nodeSize ? function(node) {
+          node.x = (node.x - root.x) * dx;
+          node.y = (root.y - node.y) * dy;
+        } : function(node) {
+          node.x = (node.x - x0) / (x1 - x0) * dx;
+          node.y = (1 - (root.y ? node.y / root.y : 1)) * dy;
+        });
+      }
+
+      cluster.separation = function(x) {
+        return arguments.length ? (separation = x, cluster) : separation;
+      };
+
+      cluster.size = function(x) {
+        return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? null : [dx, dy]);
+      };
+
+      cluster.nodeSize = function(x) {
+        return arguments.length ? (nodeSize = true, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? [dx, dy] : null);
+      };
+
+      return cluster;
+    }
+
+    function count(node) {
+      var sum = 0,
+          children = node.children,
+          i = children && children.length;
+      if (!i) sum = 1;
+      else while (--i >= 0) sum += children[i].value;
+      node.value = sum;
+    }
+
+    function node_count() {
+      return this.eachAfter(count);
+    }
+
+    function node_each(callback) {
+      var node = this, current, next = [node], children, i, n;
+      do {
+        current = next.reverse(), next = [];
+        while (node = current.pop()) {
+          callback(node), children = node.children;
+          if (children) for (i = 0, n = children.length; i < n; ++i) {
+            next.push(children[i]);
+          }
         }
-        SVGUtils.Translate = function (x, y) {
+      } while (next.length);
+      return this;
+    }
+
+    function node_eachBefore(callback) {
+      var node = this, nodes = [node], children, i;
+      while (node = nodes.pop()) {
+        callback(node), children = node.children;
+        if (children) for (i = children.length - 1; i >= 0; --i) {
+          nodes.push(children[i]);
+        }
+      }
+      return this;
+    }
+
+    function node_eachAfter(callback) {
+      var node = this, nodes = [node], next = [], children, i, n;
+      while (node = nodes.pop()) {
+        next.push(node), children = node.children;
+        if (children) for (i = 0, n = children.length; i < n; ++i) {
+          nodes.push(children[i]);
+        }
+      }
+      while (node = next.pop()) {
+        callback(node);
+      }
+      return this;
+    }
+
+    function node_sum(value) {
+      return this.eachAfter(function(node) {
+        var sum = +value(node.data) || 0,
+            children = node.children,
+            i = children && children.length;
+        while (--i >= 0) sum += children[i].value;
+        node.value = sum;
+      });
+    }
+
+    function node_sort(compare) {
+      return this.eachBefore(function(node) {
+        if (node.children) {
+          node.children.sort(compare);
+        }
+      });
+    }
+
+    function node_path(end) {
+      var start = this,
+          ancestor = leastCommonAncestor(start, end),
+          nodes = [start];
+      while (start !== ancestor) {
+        start = start.parent;
+        nodes.push(start);
+      }
+      var k = nodes.length;
+      while (end !== ancestor) {
+        nodes.splice(k, 0, end);
+        end = end.parent;
+      }
+      return nodes;
+    }
+
+    function leastCommonAncestor(a, b) {
+      if (a === b) return a;
+      var aNodes = a.ancestors(),
+          bNodes = b.ancestors(),
+          c = null;
+      a = aNodes.pop();
+      b = bNodes.pop();
+      while (a === b) {
+        c = a;
+        a = aNodes.pop();
+        b = bNodes.pop();
+      }
+      return c;
+    }
+
+    function node_ancestors() {
+      var node = this, nodes = [node];
+      while (node = node.parent) {
+        nodes.push(node);
+      }
+      return nodes;
+    }
+
+    function node_descendants() {
+      var nodes = [];
+      this.each(function(node) {
+        nodes.push(node);
+      });
+      return nodes;
+    }
+
+    function node_leaves() {
+      var leaves = [];
+      this.eachBefore(function(node) {
+        if (!node.children) {
+          leaves.push(node);
+        }
+      });
+      return leaves;
+    }
+
+    function node_links() {
+      var root = this, links = [];
+      root.each(function(node) {
+        if (node !== root) { // Don’t include the root’s parent, if any.
+          links.push({source: node.parent, target: node});
+        }
+      });
+      return links;
+    }
+
+    function hierarchy(data, children) {
+      var root = new Node(data),
+          valued = +data.value && (root.value = data.value),
+          node,
+          nodes = [root],
+          child,
+          childs,
+          i,
+          n;
+
+      if (children == null) children = defaultChildren;
+
+      while (node = nodes.pop()) {
+        if (valued) node.value = +node.data.value;
+        if ((childs = children(node.data)) && (n = childs.length)) {
+          node.children = new Array(n);
+          for (i = n - 1; i >= 0; --i) {
+            nodes.push(child = node.children[i] = new Node(childs[i]));
+            child.parent = node;
+            child.depth = node.depth + 1;
+          }
+        }
+      }
+
+      return root.eachBefore(computeHeight);
+    }
+
+    function node_copy() {
+      return hierarchy(this).eachBefore(copyData);
+    }
+
+    function defaultChildren(d) {
+      return d.children;
+    }
+
+    function copyData(node) {
+      node.data = node.data.data;
+    }
+
+    function computeHeight(node) {
+      var height = 0;
+      do node.height = height;
+      while ((node = node.parent) && (node.height < ++height));
+    }
+
+    function Node(data) {
+      this.data = data;
+      this.depth =
+      this.height = 0;
+      this.parent = null;
+    }
+
+    Node.prototype = hierarchy.prototype = {
+      constructor: Node,
+      count: node_count,
+      each: node_each,
+      eachAfter: node_eachAfter,
+      eachBefore: node_eachBefore,
+      sum: node_sum,
+      sort: node_sort,
+      path: node_path,
+      ancestors: node_ancestors,
+      descendants: node_descendants,
+      leaves: node_leaves,
+      links: node_links,
+      copy: node_copy
+    };
+
+    function defaultSeparation$1(a, b) {
+      return a.parent === b.parent ? 1 : 2;
+    }
+
+    // function radialSeparation(a, b) {
+    //   return (a.parent === b.parent ? 1 : 2) / a.depth;
+    // }
+
+    // This function is used to traverse the left contour of a subtree (or
+    // subforest). It returns the successor of v on this contour. This successor is
+    // either given by the leftmost child of v or by the thread of v. The function
+    // returns null if and only if v is on the highest level of its subtree.
+    function nextLeft(v) {
+      var children = v.children;
+      return children ? children[0] : v.t;
+    }
+
+    // This function works analogously to nextLeft.
+    function nextRight(v) {
+      var children = v.children;
+      return children ? children[children.length - 1] : v.t;
+    }
+
+    // Shifts the current subtree rooted at w+. This is done by increasing
+    // prelim(w+) and mod(w+) by shift.
+    function moveSubtree(wm, wp, shift) {
+      var change = shift / (wp.i - wm.i);
+      wp.c -= change;
+      wp.s += shift;
+      wm.c += change;
+      wp.z += shift;
+      wp.m += shift;
+    }
+
+    // All other shifts, applied to the smaller subtrees between w- and w+, are
+    // performed by this function. To prepare the shifts, we have to adjust
+    // change(w+), shift(w+), and change(w-).
+    function executeShifts(v) {
+      var shift = 0,
+          change = 0,
+          children = v.children,
+          i = children.length,
+          w;
+      while (--i >= 0) {
+        w = children[i];
+        w.z += shift;
+        w.m += shift;
+        shift += w.s + (change += w.c);
+      }
+    }
+
+    // If vi-’s ancestor is a sibling of v, returns vi-’s ancestor. Otherwise,
+    // returns the specified (default) ancestor.
+    function nextAncestor(vim, v, ancestor) {
+      return vim.a.parent === v.parent ? vim.a : ancestor;
+    }
+
+    function TreeNode(node, i) {
+      this._ = node;
+      this.parent = null;
+      this.children = null;
+      this.A = null; // default ancestor
+      this.a = this; // ancestor
+      this.z = 0; // prelim
+      this.m = 0; // mod
+      this.c = 0; // change
+      this.s = 0; // shift
+      this.t = null; // thread
+      this.i = i; // number
+    }
+
+    TreeNode.prototype = Object.create(Node.prototype);
+
+    function treeRoot(root) {
+      var tree = new TreeNode(root, 0),
+          node,
+          nodes = [tree],
+          child,
+          children,
+          i,
+          n;
+
+      while (node = nodes.pop()) {
+        if (children = node._.children) {
+          node.children = new Array(n = children.length);
+          for (i = n - 1; i >= 0; --i) {
+            nodes.push(child = node.children[i] = new TreeNode(children[i], i));
+            child.parent = node;
+          }
+        }
+      }
+
+      (tree.parent = new TreeNode(null, 0)).children = [tree];
+      return tree;
+    }
+
+    // Node-link tree diagram using the Reingold-Tilford "tidy" algorithm
+    function tree() {
+      var separation = defaultSeparation$1,
+          dx = 1,
+          dy = 1,
+          nodeSize = null;
+
+      function tree(root) {
+        var t = treeRoot(root);
+
+        // Compute the layout using Buchheim et al.’s algorithm.
+        t.eachAfter(firstWalk), t.parent.m = -t.z;
+        t.eachBefore(secondWalk);
+
+        // If a fixed node size is specified, scale x and y.
+        if (nodeSize) root.eachBefore(sizeNode);
+
+        // If a fixed tree size is specified, scale x and y based on the extent.
+        // Compute the left-most, right-most, and depth-most nodes for extents.
+        else {
+          var left = root,
+              right = root,
+              bottom = root;
+          root.eachBefore(function(node) {
+            if (node.x < left.x) left = node;
+            if (node.x > right.x) right = node;
+            if (node.depth > bottom.depth) bottom = node;
+          });
+          var s = left === right ? 1 : separation(left, right) / 2,
+              tx = s - left.x,
+              kx = dx / (right.x + s + tx),
+              ky = dy / (bottom.depth || 1);
+          root.eachBefore(function(node) {
+            node.x = (node.x + tx) * kx;
+            node.y = node.depth * ky;
+          });
+        }
+
+        return root;
+      }
+
+      // Computes a preliminary x-coordinate for v. Before that, FIRST WALK is
+      // applied recursively to the children of v, as well as the function
+      // APPORTION. After spacing out the children by calling EXECUTE SHIFTS, the
+      // node v is placed to the midpoint of its outermost children.
+      function firstWalk(v) {
+        var children = v.children,
+            siblings = v.parent.children,
+            w = v.i ? siblings[v.i - 1] : null;
+        if (children) {
+          executeShifts(v);
+          var midpoint = (children[0].z + children[children.length - 1].z) / 2;
+          if (w) {
+            v.z = w.z + separation(v._, w._);
+            v.m = v.z - midpoint;
+          } else {
+            v.z = midpoint;
+          }
+        } else if (w) {
+          v.z = w.z + separation(v._, w._);
+        }
+        v.parent.A = apportion(v, w, v.parent.A || siblings[0]);
+      }
+
+      // Computes all real x-coordinates by summing up the modifiers recursively.
+      function secondWalk(v) {
+        v._.x = v.z + v.parent.m;
+        v.m += v.parent.m;
+      }
+
+      // The core of the algorithm. Here, a new subtree is combined with the
+      // previous subtrees. Threads are used to traverse the inside and outside
+      // contours of the left and right subtree up to the highest common level. The
+      // vertices used for the traversals are vi+, vi-, vo-, and vo+, where the
+      // superscript o means outside and i means inside, the subscript - means left
+      // subtree and + means right subtree. For summing up the modifiers along the
+      // contour, we use respective variables si+, si-, so-, and so+. Whenever two
+      // nodes of the inside contours conflict, we compute the left one of the
+      // greatest uncommon ancestors using the function ANCESTOR and call MOVE
+      // SUBTREE to shift the subtree and prepare the shifts of smaller subtrees.
+      // Finally, we add a new thread (if necessary).
+      function apportion(v, w, ancestor) {
+        if (w) {
+          var vip = v,
+              vop = v,
+              vim = w,
+              vom = vip.parent.children[0],
+              sip = vip.m,
+              sop = vop.m,
+              sim = vim.m,
+              som = vom.m,
+              shift;
+          while (vim = nextRight(vim), vip = nextLeft(vip), vim && vip) {
+            vom = nextLeft(vom);
+            vop = nextRight(vop);
+            vop.a = v;
+            shift = vim.z + sim - vip.z - sip + separation(vim._, vip._);
+            if (shift > 0) {
+              moveSubtree(nextAncestor(vim, v, ancestor), v, shift);
+              sip += shift;
+              sop += shift;
+            }
+            sim += vim.m;
+            sip += vip.m;
+            som += vom.m;
+            sop += vop.m;
+          }
+          if (vim && !nextRight(vop)) {
+            vop.t = vim;
+            vop.m += sim - sop;
+          }
+          if (vip && !nextLeft(vom)) {
+            vom.t = vip;
+            vom.m += sip - som;
+            ancestor = v;
+          }
+        }
+        return ancestor;
+      }
+
+      function sizeNode(node) {
+        node.x *= dx;
+        node.y = node.depth * dy;
+      }
+
+      tree.separation = function(x) {
+        return arguments.length ? (separation = x, tree) : separation;
+      };
+
+      tree.size = function(x) {
+        return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], tree) : (nodeSize ? null : [dx, dy]);
+      };
+
+      tree.nodeSize = function(x) {
+        return arguments.length ? (nodeSize = true, dx = +x[0], dy = +x[1], tree) : (nodeSize ? [dx, dy] : null);
+      };
+
+      return tree;
+    }
+
+    var SVGUtils;
+    (function (SVGUtils) {
+        var svgElement;
+        var svgTextElement;
+        function Translate(x, y) {
             return 'translate(' + x + ', ' + y + ')';
-        };
-        return SVGUtils;
-    }());
+        }
+        SVGUtils.Translate = Translate;
+        function createDOM() {
+            if (svgElement) {
+                svgElement.parentElement.removeChild(svgElement);
+            }
+            svgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svgTextElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            svgElement.appendChild(svgTextElement);
+            document.body.appendChild(svgElement);
+        }
+        // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
+        function MeasureTextSize(textProperties, text) {
+            createDOM();
+            svgTextElement.setAttribute("style", null);
+            svgTextElement.style.visibility = "hidden";
+            svgTextElement.style.fontFamily = textProperties.fontFamily || "";
+            svgTextElement.style.fontVariant = textProperties.fontVariant;
+            svgTextElement.style.fontSize = textProperties.fontSize;
+            svgTextElement.style.fontWeight = textProperties.fontWeight;
+            svgTextElement.style.fontStyle = textProperties.fontStyle;
+            svgTextElement.style.whiteSpace = textProperties.whiteSpace || "nowrap";
+            svgTextElement.appendChild(document.createTextNode(text || textProperties.text));
+            // We're expecting the browser to give a synchronous measurement here
+            // We're using SVGTextElement because it works across all browsers
+            var textSize = svgTextElement.getBBox();
+            return textSize;
+        }
+        SVGUtils.MeasureTextSize = MeasureTextSize;
+        // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
+        function GetTailoredTextOrDefault(textProperties, maxWidth) {
+            var ellipsis = '...';
+            createDOM();
+            var strLength = textProperties.text.length;
+            if (strLength === 0) {
+                return textProperties.text;
+            }
+            var width = MeasureTextSize(textProperties).width;
+            if (width < maxWidth) {
+                return textProperties.text;
+            }
+            // Create a copy of the textProperties so we don't modify the one that's passed in.
+            // let copiedTextProperties = Prototype.inherit(textProperties);
+            // Take the properties and apply them to svgTextElement
+            // Then, do the binary search to figure out the substring we want
+            // Set the substring on textElement argument
+            var text = textProperties.text = ellipsis + textProperties.text;
+            var min = 1;
+            var max = text.length;
+            var i = ellipsis.length;
+            while (min <= max) {
+                // num | 0 prefered to Math.floor(num) for performance benefits
+                i = (min + max) / 2 | 0;
+                textProperties.text = text.substr(0, i);
+                width = MeasureTextSize(textProperties).width;
+                if (maxWidth > width) {
+                    min = i + 1;
+                }
+                else if (maxWidth < width) {
+                    max = i - 1;
+                }
+                else {
+                    break;
+                }
+            }
+            // Since the search algorithm almost never finds an exact match,
+            // it will pick one of the closest two, which could result in a
+            // value bigger with than 'maxWidth' thus we need to go back by
+            // one to guarantee a smaller width than 'maxWidth'.
+            textProperties.text = text.substr(0, i);
+            width = MeasureTextSize(textProperties).width;
+            if (width > maxWidth) {
+                i--;
+            }
+            // console.log(textProperties.text, width);
+            return text.substr(ellipsis.length, i - ellipsis.length) + ellipsis;
+        }
+        SVGUtils.GetTailoredTextOrDefault = GetTailoredTextOrDefault;
+    })(SVGUtils || (SVGUtils = {}));
     //# sourceMappingURL=Utils.js.map
 
     var pi = Math.PI,
@@ -143,7 +766,7 @@
       }
     };
 
-    function constant(x) {
+    function constant$1(x) {
       return function constant() {
         return x;
       };
@@ -159,7 +782,7 @@
       return p[1];
     }
 
-    var slice = Array.prototype.slice;
+    var slice$1 = Array.prototype.slice;
 
     function linkSource(d) {
       return d.source;
@@ -177,7 +800,7 @@
           context = null;
 
       function link() {
-        var buffer, argv = slice.call(arguments), s = source.apply(this, argv), t = target.apply(this, argv);
+        var buffer, argv = slice$1.call(arguments), s = source.apply(this, argv), t = target.apply(this, argv);
         if (!context) context = buffer = path();
         curve(context, +x$$1.apply(this, (argv[0] = s, argv)), +y$$1.apply(this, argv), +x$$1.apply(this, (argv[0] = t, argv)), +y$$1.apply(this, argv));
         if (buffer) return context = null, buffer + "" || null;
@@ -192,11 +815,11 @@
       };
 
       link.x = function(_) {
-        return arguments.length ? (x$$1 = typeof _ === "function" ? _ : constant(+_), link) : x$$1;
+        return arguments.length ? (x$$1 = typeof _ === "function" ? _ : constant$1(+_), link) : x$$1;
       };
 
       link.y = function(_) {
-        return arguments.length ? (y$$1 = typeof _ === "function" ? _ : constant(+_), link) : y$$1;
+        return arguments.length ? (y$$1 = typeof _ === "function" ? _ : constant$1(+_), link) : y$$1;
       };
 
       link.context = function(_) {
@@ -469,13 +1092,13 @@
       querySelectorAll: function(selector) { return this._parent.querySelectorAll(selector); }
     };
 
-    function constant$1(x) {
+    function constant$2(x) {
       return function() {
         return x;
       };
     }
 
-    var keyPrefix = "$"; // Protect against keys like “__proto__”.
+    var keyPrefix$1 = "$"; // Protect against keys like “__proto__”.
 
     function bindIndex(parent, group, enter, update, exit, data) {
       var i = 0,
@@ -516,7 +1139,7 @@
       // If multiple nodes have the same key, the duplicates are added to exit.
       for (i = 0; i < groupLength; ++i) {
         if (node = group[i]) {
-          keyValues[i] = keyValue = keyPrefix + key.call(node, node.__data__, i, group);
+          keyValues[i] = keyValue = keyPrefix$1 + key.call(node, node.__data__, i, group);
           if (keyValue in nodeByKeyValue) {
             exit[i] = node;
           } else {
@@ -529,7 +1152,7 @@
       // If there a node associated with this key, join and add it to update.
       // If there is not (or the key is a duplicate), add it to enter.
       for (i = 0; i < dataLength; ++i) {
-        keyValue = keyPrefix + key.call(parent, data[i], i, data);
+        keyValue = keyPrefix$1 + key.call(parent, data[i], i, data);
         if (node = nodeByKeyValue[keyValue]) {
           update[i] = node;
           node.__data__ = data[i];
@@ -558,7 +1181,7 @@
           parents = this._parents,
           groups = this._groups;
 
-      if (typeof value !== "function") value = constant$1(value);
+      if (typeof value !== "function") value = constant$2(value);
 
       for (var m = groups.length, update = new Array(m), enter = new Array(m), exit = new Array(m), j = 0; j < m; ++j) {
         var parent = parents[j],
@@ -1237,532 +1860,6 @@
       }
 
       return null;
-    }
-
-    function defaultSeparation(a, b) {
-      return a.parent === b.parent ? 1 : 2;
-    }
-
-    function meanX(children) {
-      return children.reduce(meanXReduce, 0) / children.length;
-    }
-
-    function meanXReduce(x, c) {
-      return x + c.x;
-    }
-
-    function maxY(children) {
-      return 1 + children.reduce(maxYReduce, 0);
-    }
-
-    function maxYReduce(y, c) {
-      return Math.max(y, c.y);
-    }
-
-    function leafLeft(node) {
-      var children;
-      while (children = node.children) node = children[0];
-      return node;
-    }
-
-    function leafRight(node) {
-      var children;
-      while (children = node.children) node = children[children.length - 1];
-      return node;
-    }
-
-    function cluster() {
-      var separation = defaultSeparation,
-          dx = 1,
-          dy = 1,
-          nodeSize = false;
-
-      function cluster(root) {
-        var previousNode,
-            x = 0;
-
-        // First walk, computing the initial x & y values.
-        root.eachAfter(function(node) {
-          var children = node.children;
-          if (children) {
-            node.x = meanX(children);
-            node.y = maxY(children);
-          } else {
-            node.x = previousNode ? x += separation(node, previousNode) : 0;
-            node.y = 0;
-            previousNode = node;
-          }
-        });
-
-        var left = leafLeft(root),
-            right = leafRight(root),
-            x0 = left.x - separation(left, right) / 2,
-            x1 = right.x + separation(right, left) / 2;
-
-        // Second walk, normalizing x & y to the desired size.
-        return root.eachAfter(nodeSize ? function(node) {
-          node.x = (node.x - root.x) * dx;
-          node.y = (root.y - node.y) * dy;
-        } : function(node) {
-          node.x = (node.x - x0) / (x1 - x0) * dx;
-          node.y = (1 - (root.y ? node.y / root.y : 1)) * dy;
-        });
-      }
-
-      cluster.separation = function(x) {
-        return arguments.length ? (separation = x, cluster) : separation;
-      };
-
-      cluster.size = function(x) {
-        return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? null : [dx, dy]);
-      };
-
-      cluster.nodeSize = function(x) {
-        return arguments.length ? (nodeSize = true, dx = +x[0], dy = +x[1], cluster) : (nodeSize ? [dx, dy] : null);
-      };
-
-      return cluster;
-    }
-
-    function count(node) {
-      var sum = 0,
-          children = node.children,
-          i = children && children.length;
-      if (!i) sum = 1;
-      else while (--i >= 0) sum += children[i].value;
-      node.value = sum;
-    }
-
-    function node_count() {
-      return this.eachAfter(count);
-    }
-
-    function node_each(callback) {
-      var node = this, current, next = [node], children, i, n;
-      do {
-        current = next.reverse(), next = [];
-        while (node = current.pop()) {
-          callback(node), children = node.children;
-          if (children) for (i = 0, n = children.length; i < n; ++i) {
-            next.push(children[i]);
-          }
-        }
-      } while (next.length);
-      return this;
-    }
-
-    function node_eachBefore(callback) {
-      var node = this, nodes = [node], children, i;
-      while (node = nodes.pop()) {
-        callback(node), children = node.children;
-        if (children) for (i = children.length - 1; i >= 0; --i) {
-          nodes.push(children[i]);
-        }
-      }
-      return this;
-    }
-
-    function node_eachAfter(callback) {
-      var node = this, nodes = [node], next = [], children, i, n;
-      while (node = nodes.pop()) {
-        next.push(node), children = node.children;
-        if (children) for (i = 0, n = children.length; i < n; ++i) {
-          nodes.push(children[i]);
-        }
-      }
-      while (node = next.pop()) {
-        callback(node);
-      }
-      return this;
-    }
-
-    function node_sum(value) {
-      return this.eachAfter(function(node) {
-        var sum = +value(node.data) || 0,
-            children = node.children,
-            i = children && children.length;
-        while (--i >= 0) sum += children[i].value;
-        node.value = sum;
-      });
-    }
-
-    function node_sort(compare) {
-      return this.eachBefore(function(node) {
-        if (node.children) {
-          node.children.sort(compare);
-        }
-      });
-    }
-
-    function node_path(end) {
-      var start = this,
-          ancestor = leastCommonAncestor(start, end),
-          nodes = [start];
-      while (start !== ancestor) {
-        start = start.parent;
-        nodes.push(start);
-      }
-      var k = nodes.length;
-      while (end !== ancestor) {
-        nodes.splice(k, 0, end);
-        end = end.parent;
-      }
-      return nodes;
-    }
-
-    function leastCommonAncestor(a, b) {
-      if (a === b) return a;
-      var aNodes = a.ancestors(),
-          bNodes = b.ancestors(),
-          c = null;
-      a = aNodes.pop();
-      b = bNodes.pop();
-      while (a === b) {
-        c = a;
-        a = aNodes.pop();
-        b = bNodes.pop();
-      }
-      return c;
-    }
-
-    function node_ancestors() {
-      var node = this, nodes = [node];
-      while (node = node.parent) {
-        nodes.push(node);
-      }
-      return nodes;
-    }
-
-    function node_descendants() {
-      var nodes = [];
-      this.each(function(node) {
-        nodes.push(node);
-      });
-      return nodes;
-    }
-
-    function node_leaves() {
-      var leaves = [];
-      this.eachBefore(function(node) {
-        if (!node.children) {
-          leaves.push(node);
-        }
-      });
-      return leaves;
-    }
-
-    function node_links() {
-      var root = this, links = [];
-      root.each(function(node) {
-        if (node !== root) { // Don’t include the root’s parent, if any.
-          links.push({source: node.parent, target: node});
-        }
-      });
-      return links;
-    }
-
-    function hierarchy(data, children) {
-      var root = new Node(data),
-          valued = +data.value && (root.value = data.value),
-          node,
-          nodes = [root],
-          child,
-          childs,
-          i,
-          n;
-
-      if (children == null) children = defaultChildren;
-
-      while (node = nodes.pop()) {
-        if (valued) node.value = +node.data.value;
-        if ((childs = children(node.data)) && (n = childs.length)) {
-          node.children = new Array(n);
-          for (i = n - 1; i >= 0; --i) {
-            nodes.push(child = node.children[i] = new Node(childs[i]));
-            child.parent = node;
-            child.depth = node.depth + 1;
-          }
-        }
-      }
-
-      return root.eachBefore(computeHeight);
-    }
-
-    function node_copy() {
-      return hierarchy(this).eachBefore(copyData);
-    }
-
-    function defaultChildren(d) {
-      return d.children;
-    }
-
-    function copyData(node) {
-      node.data = node.data.data;
-    }
-
-    function computeHeight(node) {
-      var height = 0;
-      do node.height = height;
-      while ((node = node.parent) && (node.height < ++height));
-    }
-
-    function Node(data) {
-      this.data = data;
-      this.depth =
-      this.height = 0;
-      this.parent = null;
-    }
-
-    Node.prototype = hierarchy.prototype = {
-      constructor: Node,
-      count: node_count,
-      each: node_each,
-      eachAfter: node_eachAfter,
-      eachBefore: node_eachBefore,
-      sum: node_sum,
-      sort: node_sort,
-      path: node_path,
-      ancestors: node_ancestors,
-      descendants: node_descendants,
-      leaves: node_leaves,
-      links: node_links,
-      copy: node_copy
-    };
-
-    function defaultSeparation$1(a, b) {
-      return a.parent === b.parent ? 1 : 2;
-    }
-
-    // function radialSeparation(a, b) {
-    //   return (a.parent === b.parent ? 1 : 2) / a.depth;
-    // }
-
-    // This function is used to traverse the left contour of a subtree (or
-    // subforest). It returns the successor of v on this contour. This successor is
-    // either given by the leftmost child of v or by the thread of v. The function
-    // returns null if and only if v is on the highest level of its subtree.
-    function nextLeft(v) {
-      var children = v.children;
-      return children ? children[0] : v.t;
-    }
-
-    // This function works analogously to nextLeft.
-    function nextRight(v) {
-      var children = v.children;
-      return children ? children[children.length - 1] : v.t;
-    }
-
-    // Shifts the current subtree rooted at w+. This is done by increasing
-    // prelim(w+) and mod(w+) by shift.
-    function moveSubtree(wm, wp, shift) {
-      var change = shift / (wp.i - wm.i);
-      wp.c -= change;
-      wp.s += shift;
-      wm.c += change;
-      wp.z += shift;
-      wp.m += shift;
-    }
-
-    // All other shifts, applied to the smaller subtrees between w- and w+, are
-    // performed by this function. To prepare the shifts, we have to adjust
-    // change(w+), shift(w+), and change(w-).
-    function executeShifts(v) {
-      var shift = 0,
-          change = 0,
-          children = v.children,
-          i = children.length,
-          w;
-      while (--i >= 0) {
-        w = children[i];
-        w.z += shift;
-        w.m += shift;
-        shift += w.s + (change += w.c);
-      }
-    }
-
-    // If vi-’s ancestor is a sibling of v, returns vi-’s ancestor. Otherwise,
-    // returns the specified (default) ancestor.
-    function nextAncestor(vim, v, ancestor) {
-      return vim.a.parent === v.parent ? vim.a : ancestor;
-    }
-
-    function TreeNode(node, i) {
-      this._ = node;
-      this.parent = null;
-      this.children = null;
-      this.A = null; // default ancestor
-      this.a = this; // ancestor
-      this.z = 0; // prelim
-      this.m = 0; // mod
-      this.c = 0; // change
-      this.s = 0; // shift
-      this.t = null; // thread
-      this.i = i; // number
-    }
-
-    TreeNode.prototype = Object.create(Node.prototype);
-
-    function treeRoot(root) {
-      var tree = new TreeNode(root, 0),
-          node,
-          nodes = [tree],
-          child,
-          children,
-          i,
-          n;
-
-      while (node = nodes.pop()) {
-        if (children = node._.children) {
-          node.children = new Array(n = children.length);
-          for (i = n - 1; i >= 0; --i) {
-            nodes.push(child = node.children[i] = new TreeNode(children[i], i));
-            child.parent = node;
-          }
-        }
-      }
-
-      (tree.parent = new TreeNode(null, 0)).children = [tree];
-      return tree;
-    }
-
-    // Node-link tree diagram using the Reingold-Tilford "tidy" algorithm
-    function tree() {
-      var separation = defaultSeparation$1,
-          dx = 1,
-          dy = 1,
-          nodeSize = null;
-
-      function tree(root) {
-        var t = treeRoot(root);
-
-        // Compute the layout using Buchheim et al.’s algorithm.
-        t.eachAfter(firstWalk), t.parent.m = -t.z;
-        t.eachBefore(secondWalk);
-
-        // If a fixed node size is specified, scale x and y.
-        if (nodeSize) root.eachBefore(sizeNode);
-
-        // If a fixed tree size is specified, scale x and y based on the extent.
-        // Compute the left-most, right-most, and depth-most nodes for extents.
-        else {
-          var left = root,
-              right = root,
-              bottom = root;
-          root.eachBefore(function(node) {
-            if (node.x < left.x) left = node;
-            if (node.x > right.x) right = node;
-            if (node.depth > bottom.depth) bottom = node;
-          });
-          var s = left === right ? 1 : separation(left, right) / 2,
-              tx = s - left.x,
-              kx = dx / (right.x + s + tx),
-              ky = dy / (bottom.depth || 1);
-          root.eachBefore(function(node) {
-            node.x = (node.x + tx) * kx;
-            node.y = node.depth * ky;
-          });
-        }
-
-        return root;
-      }
-
-      // Computes a preliminary x-coordinate for v. Before that, FIRST WALK is
-      // applied recursively to the children of v, as well as the function
-      // APPORTION. After spacing out the children by calling EXECUTE SHIFTS, the
-      // node v is placed to the midpoint of its outermost children.
-      function firstWalk(v) {
-        var children = v.children,
-            siblings = v.parent.children,
-            w = v.i ? siblings[v.i - 1] : null;
-        if (children) {
-          executeShifts(v);
-          var midpoint = (children[0].z + children[children.length - 1].z) / 2;
-          if (w) {
-            v.z = w.z + separation(v._, w._);
-            v.m = v.z - midpoint;
-          } else {
-            v.z = midpoint;
-          }
-        } else if (w) {
-          v.z = w.z + separation(v._, w._);
-        }
-        v.parent.A = apportion(v, w, v.parent.A || siblings[0]);
-      }
-
-      // Computes all real x-coordinates by summing up the modifiers recursively.
-      function secondWalk(v) {
-        v._.x = v.z + v.parent.m;
-        v.m += v.parent.m;
-      }
-
-      // The core of the algorithm. Here, a new subtree is combined with the
-      // previous subtrees. Threads are used to traverse the inside and outside
-      // contours of the left and right subtree up to the highest common level. The
-      // vertices used for the traversals are vi+, vi-, vo-, and vo+, where the
-      // superscript o means outside and i means inside, the subscript - means left
-      // subtree and + means right subtree. For summing up the modifiers along the
-      // contour, we use respective variables si+, si-, so-, and so+. Whenever two
-      // nodes of the inside contours conflict, we compute the left one of the
-      // greatest uncommon ancestors using the function ANCESTOR and call MOVE
-      // SUBTREE to shift the subtree and prepare the shifts of smaller subtrees.
-      // Finally, we add a new thread (if necessary).
-      function apportion(v, w, ancestor) {
-        if (w) {
-          var vip = v,
-              vop = v,
-              vim = w,
-              vom = vip.parent.children[0],
-              sip = vip.m,
-              sop = vop.m,
-              sim = vim.m,
-              som = vom.m,
-              shift;
-          while (vim = nextRight(vim), vip = nextLeft(vip), vim && vip) {
-            vom = nextLeft(vom);
-            vop = nextRight(vop);
-            vop.a = v;
-            shift = vim.z + sim - vip.z - sip + separation(vim._, vip._);
-            if (shift > 0) {
-              moveSubtree(nextAncestor(vim, v, ancestor), v, shift);
-              sip += shift;
-              sop += shift;
-            }
-            sim += vim.m;
-            sip += vip.m;
-            som += vom.m;
-            sop += vop.m;
-          }
-          if (vim && !nextRight(vop)) {
-            vop.t = vim;
-            vop.m += sim - sop;
-          }
-          if (vip && !nextLeft(vom)) {
-            vom.t = vip;
-            vom.m += sip - som;
-            ancestor = v;
-          }
-        }
-        return ancestor;
-      }
-
-      function sizeNode(node) {
-        node.x *= dx;
-        node.y = node.depth * dy;
-      }
-
-      tree.separation = function(x) {
-        return arguments.length ? (separation = x, tree) : separation;
-      };
-
-      tree.size = function(x) {
-        return arguments.length ? (nodeSize = false, dx = +x[0], dy = +x[1], tree) : (nodeSize ? null : [dx, dy]);
-      };
-
-      tree.nodeSize = function(x) {
-        return arguments.length ? (nodeSize = true, dx = +x[0], dy = +x[1], tree) : (nodeSize ? [dx, dy] : null);
-      };
-
-      return tree;
     }
 
     var noop$1 = {value: function() {}};
@@ -4148,6 +4245,8 @@
 
     //svgutils
     var Translate = SVGUtils.Translate;
+    var MeasureTextSize = SVGUtils.MeasureTextSize;
+    var GetTailoredTextOrDefault = SVGUtils.GetTailoredTextOrDefault;
     var D3Tree = /** @class */ (function () {
         /**
          *
@@ -4160,9 +4259,8 @@
             this.data = data;
             this.treeProperties = treeProperties;
             this.dynamicHeightAndWidth = false; // enable zoom when there is no treeheight and width is provided.
-            // animation constants
-            this.nodeAnimationDuration = 1000;
-            this.nodeLinkAnimationDuration = 1000;
+            this.nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
+            this._setDefaultValuesForTreeProperties();
         }
         /**
          * Call this funtion wich will create initial tree structure based on generalProperties specified in
@@ -4171,11 +4269,12 @@
         D3Tree.prototype.CreateTree = function () {
             var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
             // set maxExpandedDepth to defaultMaxDepth
             this.maxExpandedDepth = generalProperties.defaultMaxDepth;
             // Generate hierarchy data which gives depth, height and other info.
-            this.hierarchyData = hierarchy(this.data, function (d) {
-                return d.children;
+            this.hierarchyData = hierarchy(this.data, function (treeDatum) {
+                return treeDatum.children;
             });
             /**
              * Recursive funtion used to collapse tree nodes based on defaultMaxDepth property of generalSettings.
@@ -4193,27 +4292,81 @@
             this.treeGroup = this.rootSVG
                 .append('g')
                 .classed('treeGroup', true);
+            // calculate node size i.e. acutal height and width for spacing purpose.
+            if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
+                this.nodeHeight = this.nodeWidth = 2 * nodeShapeProperties.radius;
+            }
+            else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+                this.nodeHeight = nodeShapeProperties.height;
+                this.nodeWidth = nodeShapeProperties.width;
+            }
+            // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
+            if (nodeTextProperties.showTextInsideShape) {
+                nodeTextProperties.maxAllowedWidth = this.nodeWidth;
+            }
             // only add zoom when no fixed treeheight and treewidth is provided.
             if (generalProperties.treeHeight == undefined && generalProperties.treeWidth == undefined) {
                 this.dynamicHeightAndWidth = true;
             }
-            else {
-                generalProperties.treeHeight = generalProperties.treeHeight - nodeShapeProperties.size * 4;
-                generalProperties.treeWidth = generalProperties.treeWidth - nodeShapeProperties.size * 4;
-                this.treeGroup.attr('transform', Translate(nodeShapeProperties.size * 2, nodeShapeProperties.size * 2));
+            this._updateTree(); // update the tree if already created or make a new tree.
+            if (this.dynamicHeightAndWidth) {
+                this._centerNode(this.treeNodes); // center the root node.
             }
-            // create tree data based on give data
-            // this._createTreeData();
-            this._updateTree();
         };
         /**
          * Updates the tree such as updating nodes, nodes shapes, node links etc.
          */
         D3Tree.prototype._updateTree = function () {
             this._createTreeData();
+            this._createNodeGroups();
             this._createNodes();
             this._createNodeLinks();
-            // this._createNodeText();
+            this._createNodeText();
+        };
+        D3Tree.prototype._setDefaultValuesForTreeProperties = function () {
+            var generalProperties = this.treeProperties.generalProperties;
+            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
+            var nodeTextproperties = this.treeProperties.nodeTextProperties;
+            // general properties
+            if (generalProperties.isClusterLayout == undefined) {
+                generalProperties.isClusterLayout = false;
+            }
+            if (generalProperties.extraDepthWiseHeight == undefined) {
+                generalProperties.extraDepthWiseHeight = 0;
+            }
+            // node shape properties
+            if (nodeShapeProperties.animationDuration == undefined) {
+                nodeShapeProperties.animationDuration = 1000;
+            }
+            // node link properties
+            if (nodeLinkProperties.animationDuration == undefined) {
+                nodeLinkProperties.animationDuration = 1000;
+            }
+            // node text properties
+            if (nodeTextproperties.backgroundColor == undefined) {
+                nodeTextproperties.backgroundColor = '#F2F2F2';
+            }
+            if (nodeTextproperties.fontWeight == undefined) {
+                nodeTextproperties.fontWeight = 'normal';
+            }
+            if (nodeTextproperties.fontStyle == undefined) {
+                nodeTextproperties.fontStyle = 'normal';
+            }
+            if (nodeTextproperties.spaceBetweenNodeAndText == undefined) {
+                nodeTextproperties.spaceBetweenNodeAndText = 5;
+            }
+            if (nodeTextproperties.maxAllowedWidth == undefined) {
+                nodeTextproperties.maxAllowedWidth = 50;
+            }
+            if (nodeTextproperties.textPadding == undefined) {
+                if (nodeTextproperties.showBackground) {
+                    nodeTextproperties.textPadding = 4;
+                }
+                else {
+                    nodeTextproperties.textPadding = 0;
+                }
+            }
         };
         /**
          * Creates D3 tree data based on json data provided in constructor
@@ -4221,42 +4374,42 @@
         D3Tree.prototype._createTreeData = function () {
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
-            // if zoom is enabled that means no treeheight or treewidth is provided
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            // if dynaimicHeightSndWidth is true,s that means no treeheight or treewidth is provided
             // than we calculate it according to the tree data.
+            var treeHeight;
+            var treeWidth;
+            var textProperties = {
+                'fontFamily': nodeTextProperties.fontFamily,
+                'fontSize': nodeTextProperties.fontSize,
+                'fontStyle': nodeTextProperties.fontStyle,
+                'fontWeight': nodeTextProperties.fontWeight
+            };
             if (this.dynamicHeightAndWidth) {
-                // Find depth wise max children count to calculate proper tree height.
-                // base code credit: http://bl.ocks.org/robschmuecker/7880033
-                var depthWiseChildrenCount_1 = [1];
-                var countDepthwiseChildren_1 = function (level, node) {
+                // Find longest text width present in tree to calculate proper spacing between nodes.
+                var maxTextWidth_1 = 0;
+                var findMaxLabelLength_1 = function (level, node) {
+                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
                     if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
-                        if (depthWiseChildrenCount_1.length <= level + 1)
-                            depthWiseChildrenCount_1.push(0);
-                        depthWiseChildrenCount_1[level + 1] += node.children.length;
-                        node.children.forEach(function (d) {
-                            countDepthwiseChildren_1(level + 1, d);
+                        node.children.forEach(function (element) {
+                            findMaxLabelLength_1(level + 1, element);
                         });
                     }
-                };
-                countDepthwiseChildren_1(0, this.hierarchyData);
-                // Find longest text present in tree calculate proper spacing between nodes.
-                var maxTextLabelLength_1 = 0;
-                var findMaxLabelLength_1 = function (level, node) {
-                    if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
-                        if (level < generalProperties.defaultMaxDepth) {
-                            node.children.forEach(function (element) {
-                                findMaxLabelLength_1(level + 1, element);
-                            });
-                        }
-                    }
-                    maxTextLabelLength_1 = Math.max(node.data.name.length, maxTextLabelLength_1);
+                    maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
                 };
                 findMaxLabelLength_1(0, this.hierarchyData);
-                var treeHeight = max$1(depthWiseChildrenCount_1) * 35;
-                //TODO: change tree width based on actual width in px of label with max length.
-                var treeWidth = maxTextLabelLength_1 * depthWiseChildrenCount_1.length * 10;
-                // create tree data with calculated height and width
-                generalProperties.treeHeight = treeHeight;
-                generalProperties.treeWidth = treeWidth;
+                var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height +
+                    (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+                // if node shape size is greater than text height than use that for treeHeight calculation
+                var perNodeHeight = textHeight > this.nodeHeight ? textHeight : this.nodeHeight;
+                var maxPerNodeTextWidth = nodeTextProperties.maxAllowedWidth + (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+                treeWidth = (maxTextWidth_1 + generalProperties.extraDepthWiseHeight) * (this.maxExpandedDepth + 1);
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
+                }
+                else {
+                    treeHeight = this.hierarchyData.leaves().length * maxPerNodeTextWidth;
+                }
                 // adding zoom to tree.
                 var minZoomScale = Math.min(generalProperties.containerHeight / generalProperties.treeHeight, generalProperties.containerWidth / generalProperties.treeWidth);
                 minZoomScale = minZoomScale - (minZoomScale * 0.05);
@@ -4265,8 +4418,8 @@
                     _this.treeGroup.attr('transform', event.transform);
                 };
                 // settings max translate extent for zooming
-                var maxTranslateX = generalProperties.containerWidth - (generalProperties.treeWidth * minZoomScale);
-                var maxTranslateY = generalProperties.containerHeight - (generalProperties.treeHeight * minZoomScale);
+                // let maxTranslateX = generalProperties.containerWidth - (generalProperties.treeWidth * minZoomScale);
+                // let maxTranslateY = generalProperties.containerHeight - (generalProperties.treeHeight * minZoomScale);
                 // listner will be attached to root SVG.
                 this.rootSVGZoomListner = zoom().scaleExtent([minZoomScale, 3])
                     // .translateExtent([[0, 0], [generalProperties.containerWidth, generalProperties.containerHeight]])
@@ -4275,38 +4428,70 @@
                     return (event.button == 1 ||
                         event instanceof WheelEvent);
                 });
-                // this.treeGroup.attr('transform', 'scale(' + minZoomScale + ')');
-                // this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListner.transform as any, zoomIdentity.scale(minZoomScale));
                 this.rootSVG.call(this.rootSVGZoomListner);
             }
+            else {
+                // to set right margin
+                var maxLeaveNodesTextWidth_1 = 0;
+                var rootNodeTextWidth = MeasureTextSize(textProperties, this.hierarchyData.data.name).width +
+                    nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeWidth / 2;
+                this.hierarchyData.leaves().forEach(function (node) {
+                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                    maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
+                });
+                maxLeaveNodesTextWidth_1 += nodeTextProperties.textPadding;
+                treeHeight = generalProperties.treeHeight;
+                treeWidth = generalProperties.treeWidth - (rootNodeTextWidth + maxLeaveNodesTextWidth_1 + nodeTextProperties.spaceBetweenNodeAndText);
+                console.log(treeWidth);
+                this.treeGroup.transition()
+                    .duration(1000)
+                    .attr('transform', Translate(rootNodeTextWidth, 0));
+            }
             if (generalProperties.isClusterLayout) {
-                this.treeMap = cluster().size([generalProperties.treeHeight, generalProperties.treeWidth]);
+                this.tree = cluster().size([treeHeight, treeWidth]);
             }
             else {
-                this.treeMap = tree().size([generalProperties.treeHeight, generalProperties.treeWidth]);
+                this.tree = tree().size([treeHeight, treeWidth]);
             }
             // get final data
-            this.treeData = this.treeMap(this.hierarchyData);
-            this.treeDataArray = this.treeData.descendants();
-            this.treeDataLinks = this.treeData.links();
-            // console.log(generalProperties.treeHeight, generalProperties.treeWidth);
+            this.treeNodes = this.tree(this.hierarchyData);
+            this.treeNodeArray = this.treeNodes.descendants();
+            // if orientation is horizontal than swap the x and y
+            if (generalProperties.orientation == TreeOrientation.horizontal) {
+                this.treeNodeArray.forEach(function (node) {
+                    node.x = node.x + node.y;
+                    node.y = node.x - node.y;
+                    node.x = node.x - node.y;
+                });
+            }
+            this.treeDataLinks = this.treeNodes.links();
+        };
+        /**
+         * Updates nodes selection with latest data and adds new node groups into DOM.
+         */
+        D3Tree.prototype._createNodeGroups = function () {
+            var _this = this;
+            this.nodes = this.treeGroup.selectAll('g.node')
+                .data(this.treeNodeArray, function (node) {
+                return (node.id || (node.id = ++_this.nodeUID));
+            });
+            this.nodesEnter = this.nodes.enter()
+                .append('g')
+                .classed('node', true)
+                .attr('transform', function (node) {
+                return Translate(node.x, node.y);
+            });
         };
         D3Tree.prototype._createNodes = function () {
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
-            var nodes = this.treeGroup.selectAll('g.node')
-                .data(this.treeDataArray, function (d) {
-                return (d.id || (d.id = ++nodeUID));
-            });
             var click = function (node) {
-                // collapse
-                if (node.children) {
+                if (node.children) { // collapse
                     node._children = node.children;
                     node.children = null;
                 }
-                else { //expand
+                else if (node._children) { // expand
                     node.children = node._children;
                     node._children = null;
                 }
@@ -4315,151 +4500,353 @@
                     _this.maxExpandedDepth = max$1(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
                 }
                 _this._updateTree();
-                _this._centerNode(node);
+                if (_this.dynamicHeightAndWidth) {
+                    _this._centerNode(node);
+                }
             };
-            var nodeEnter = nodes.enter()
-                .append('g')
-                .classed('node', true)
-                .attr('transform', function (d) {
-                if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                    return Translate(d.y, d.x);
-                }
-                else {
-                    return Translate(d.x, d.y);
-                }
-            });
             if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-                nodeEnter.append('circle')
-                    .attr('r', nodeShapeProperties.size);
+                this.nodesEnter.append('circle')
+                    .attr('r', nodeShapeProperties.radius)
+                    .attr('stroke', nodeShapeProperties.stroke)
+                    .attr('stroke-width', nodeShapeProperties.strokeWidth);
             }
-            else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.square) {
-                nodeEnter.append('rect')
-                    .attr('transform', function (d) {
-                    var diff = 0 - nodeShapeProperties.size / 2;
-                    return Translate(diff, diff);
-                })
-                    .attr('height', nodeShapeProperties.size)
-                    .attr('width', nodeShapeProperties.size);
+            else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+                var squareTransformX = 0 - nodeShapeProperties.width / 2;
+                var squareTransformY = 0 - nodeShapeProperties.height / 2;
+                this.nodesEnter.append('rect')
+                    .attr('x', squareTransformX)
+                    .attr('y', squareTransformY)
+                    .attr('height', nodeShapeProperties.height)
+                    .attr('width', nodeShapeProperties.width)
+                    .attr('stroke', nodeShapeProperties.stroke)
+                    .attr('stroke-width', nodeShapeProperties.strokeWidth);
             }
-            nodeEnter.attr('fill', function (d) {
-                return d._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+            this.nodesEnter.attr('fill', function (node) {
+                return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
             })
-                .attr('stroke', nodeShapeProperties.stroke)
-                .attr('stroke-width', nodeShapeProperties.strokeWidth)
                 .on('click', click);
-            nodeEnter.append('title')
-                .text(function (d) {
-                return d.data.name;
+            this.nodesEnter.append('title')
+                .text(function (node) {
+                return node.data.name;
             });
             if (nodeShapeProperties.animation) {
-                nodeEnter.attr('opacity', 0)
+                this.nodesEnter.attr('opacity', 0)
                     .transition()
-                    .duration(this.nodeAnimationDuration)
+                    .duration(nodeShapeProperties.animationDuration)
                     .ease(cubicOut)
                     .attr('opacity', 1);
-                nodes.transition()
-                    .duration(this.nodeAnimationDuration)
-                    .attr('transform', function (d) {
-                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                        return Translate(d.y, d.x);
-                    }
-                    else {
-                        return Translate(d.x, d.y);
-                    }
+                this.nodes.transition()
+                    .duration(nodeShapeProperties.animationDuration)
+                    .attr('transform', function (node) {
+                    return Translate(node.x, node.y);
                 })
-                    .attr('fill', function (d) {
-                    return d._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                    .attr('fill', function (node) {
+                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
                 });
-                nodes.exit()
+                this.nodes.exit()
                     .attr('opacity', 1)
                     .transition()
-                    .duration(this.nodeAnimationDuration)
+                    .duration(nodeShapeProperties.animationDuration)
                     .ease(cubicOut)
                     .attr('opacity', 0)
                     .remove();
             }
             else {
-                nodeEnter.attr('opacity', 1);
-                nodes.attr('transform', function (d) {
-                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                        return Translate(d.y, d.x);
-                    }
-                    else {
-                        return Translate(d.x, d.y);
-                    }
+                this.nodesEnter.attr('opacity', 1);
+                this.nodes.attr('transform', function (node) {
+                    return Translate(node.x, node.y);
                 });
-                nodes.exit().remove();
+                this.nodes.exit().remove();
             }
         };
+        // http://bl.ocks.org/robschmuecker/7880033
         D3Tree.prototype._centerNode = function (node) {
             var t = transform(this.rootSVG.node());
-            var x = -node.y;
-            var y = -node.x;
-            console.log(node);
-            console.log(x, y, t.k);
+            var x = -node.x;
+            var y = -node.y;
             x = x * t.k + this.treeProperties.generalProperties.containerWidth / 2;
             y = y * t.k + this.treeProperties.generalProperties.containerHeight / 2;
-            console.log(x, y, t.k);
             this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListner.transform, identity$2.translate(x, y).scale(t.k));
         };
-        D3Tree.prototype._createNodeLinks = function () {
+        D3Tree.prototype._createNodeText = function () {
             var _this = this;
+            var generalProperties = this.treeProperties.generalProperties;
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var textProperties = {
+                fontFamily: nodeTextProperties.fontFamily,
+                fontSize: nodeTextProperties.fontSize,
+                fontStyle: nodeTextProperties.fontStyle,
+                fontWeight: nodeTextProperties.fontWeight
+            };
+            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+            var nodeTextEnter = this.nodesEnter
+                .append('g')
+                .classed('nodeText', true)
+                .each(function (node, i, elements) {
+                var nodeTextGroup = select(elements[i]);
+                nodeTextGroup.append('text')
+                    .attr('fill', nodeTextProperties.foregroundColor)
+                    .style('dominant-baseline', 'middle')
+                    .style('font-size', nodeTextProperties.fontSize)
+                    .style('font-family', nodeTextProperties.fontFamily)
+                    .style('font-weight', nodeTextProperties.fontWeight)
+                    .style('font-style', nodeTextProperties.fontStyle)
+                    // .attr('x', adjustXValue)
+                    // .style('text-anchor', (node: TreePointNode<any>) => {
+                    //     let textAnchor = node.children ? 'end': 'start';
+                    //     return textAnchor;
+                    // })
+                    .text(function (node) {
+                    if (nodeTextProperties.showTextInsideShape) {
+                        textProperties.text = node.data.name;
+                        return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+                    }
+                    else {
+                        return node.data.name;
+                    }
+                });
+                nodeTextGroup.append('title')
+                    .text(function (node) {
+                    return node.data.name;
+                });
+                var svgRect = nodeTextGroup.select('text').node().getBBox();
+                if (nodeTextProperties.showBackground) {
+                    nodeTextGroup.insert('rect', 'text')
+                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
+                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
+                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
+                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                        .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
+                }
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    if (nodeTextProperties.showTextInsideShape) {
+                        nodeTextGroup.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', function (node) {
+                            return Translate(_this.nodeHeight / 2, 0);
+                        });
+                    }
+                    else {
+                        nodeTextGroup.attr('transform', function (node) {
+                            if (node.children) {
+                                return Translate(-(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText), 0);
+                            }
+                            else {
+                                return Translate(nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText, 0);
+                            }
+                        });
+                    }
+                }
+                else {
+                    if (nodeTextProperties.showTextInsideShape) {
+                        nodeTextGroup.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', Translate(0, 0));
+                    }
+                    else {
+                        nodeTextGroup.attr('transform', function (node) {
+                            var x = svgRect.width / 2;
+                            var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText;
+                            if (node.children) {
+                                return Translate(-x, -y);
+                            }
+                            else {
+                                return Translate(-x, y);
+                            }
+                        });
+                    }
+                }
+                // select(elements[i]).attr('transform', Translate(10, 0));
+                // console.log(elements[i]);
+            });
+            // nodeTextEnter.append('text')
+            //     .attr('fill', nodeTextProperties.foregroundColor)
+            //     .style('dominant-baseline', 'middle')
+            //     .style('font-size', nodeTextProperties.fontSize)
+            //     .style('font-family', nodeTextProperties.fontFamily)
+            //     .style('font-weight', nodeTextProperties.fontWeight)
+            //     .style('font-style', nodeTextProperties.fontStyle);
+            // if (generalProperties.orientation == TreeOrientation.vertical) {
+            //     this._createNodeTextForVerticalTree(nodeTextEnter);
+            // } else {
+            //     this._createNodeTextForHorizontalTree(nodeTextEnter);
+            // }
+            // if (nodeTextProperties.showBackground) {
+            //     this.nodesEnter.selectAll('g.nodeText')
+            //         .insert('rect', 'text')
+            //         .each((d, i, elements) => {
+            //             let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
+            //             select(elements[i])
+            //                 .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
+            //                 .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
+            //                 .attr('height', svgRect.height + nodeTextProperties.textPadding)
+            //                 .attr('width', svgRect.width + nodeTextProperties.textPadding)
+            //                 .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
+            //         });
+            // }
+        };
+        D3Tree.prototype._createNodeTextForHorizontalTree = function (nodeTextEnter) {
+            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            // nodeTextEnter.selectAll('text')
+            //     .attr('x', adjustXValue)
+            //     .style('text-anchor', (node: TreePointNode<any>) => {
+            //         let textAnchor = node.children ? 'end': 'start';
+            //         return textAnchor;
+            //     })
+            //     .text((node: any) => {
+            //         return node.data.name;
+            //     });
+            // this.nodes.select('g.nodeText').select('text')
+            //     .attr('x', adjustXValue);
+            // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
+            //     .data(this.treeDataArray)
+            //     .enter()
+            //     .append('g')
+            //     .attr('transform', (d:any) => {
+            //         let translate = d.children ? Translate(d.y - nodeShapeProperties.size - 8, d.x) :
+            //             Translate(d.y + nodeShapeProperties.size + 8, d.x);
+            //         return translate;
+            //     });
+            // nodeTexts.append('text')
+            //     .attr('fill', nodeTextProperties.foregroundColor)
+            //     .style('dominant-baseline', 'central')
+            //     .text((d: any) => {
+            //         return d.data.name;
+            //     });
+            // nodeTexts.style('text-anchor', (d: any, i, elements) => {
+            //         let textAnchor = d.children ? 'end': 'start';
+            //         return textAnchor;
+            //     });
+            // nodeTexts.append('title')
+            //     .text((d: any) => {
+            //         return d.data.name;
+            //     });
+            // if (nodeTextProperties.enableBackground) {
+            //     nodeTexts.insert('rect', 'text')
+            //     .each((d, i, elements) => {
+            //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
+            //         select(elements[i])
+            //             .attr('x', svgRect.x - 2)
+            //             .attr('y', svgRect.y - 2)
+            //             .attr('height', svgRect.height + 4)
+            //             .attr('width', svgRect.width + 4)
+            //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
+            //     });
+            // }
+        };
+        D3Tree.prototype._createNodeTextForVerticalTree = function (nodeTextEnter) {
+            var _this = this;
+            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var textProperties = {
+                'fontFamily': nodeTextProperties.fontFamily,
+                'fontSize': nodeTextProperties.fontSize
+            };
+            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+            nodeTextEnter.selectAll('text')
+                .attr('y', function (node) {
+                var totalSpacing = 0;
+                var backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2 : 0;
+                if (node.children) {
+                    totalSpacing = -_this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+                }
+                else {
+                    totalSpacing = _this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+                }
+                return totalSpacing;
+            })
+                .style('text-anchor', 'middle')
+                .text(function (node) {
+                textProperties.text = node.data.name;
+                return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+            });
+            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+            // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
+            //     .data(this.treeDataArray)
+            //     .enter()
+            //     .append('g')
+            //     .attr('transform', (d:any) => {
+            //         return Translate(d.x + nodeShapeProperties.size + 8, d.y)
+            //     });
+            // nodeTexts.append('text')
+            //     .attr('fill', nodeTextProperties.foregroundColor)
+            //     .style('dominant-baseline', 'central')
+            //     .text((d: any) => {
+            //         return d.data.name;
+            //     });
+            // nodeTexts.style('text-anchor', (d: any, i, elements) => {
+            //     let textWidth: number = (elements[i] as any).getBBox().width;
+            //     let textAnchor = (textWidth < nodeShapeProperties.size) ? 'middle' : 'start';
+            //     return textAnchor;
+            // });
+            // nodeTexts.append('title')
+            //     .text((d: any) => {
+            //         return d.data.name;
+            //     });
+            // if (nodeTextProperties.showBackground) {
+            //     nodeTexts.insert('rect', 'text')
+            //     .each((d, i, elements) => {
+            //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
+            //         select(elements[i])
+            //             .attr('x', svgRect.x - 2)
+            //             .attr('y', svgRect.y - 2)
+            //             .attr('height', svgRect.height + 4)
+            //             .attr('width', svgRect.width + 4)
+            //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
+            //     });
+            // }
+        };
+        D3Tree.prototype._createNodeLinks = function () {
             var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
             var generalProperties = this.treeProperties.generalProperties;
+            var nodeAnimationDuration = this.treeProperties.nodeShapeProperties.animationDuration;
             var horizontalCurveLink = linkHorizontal()
-                .x(function (d) { return d.y; })
-                .y(function (d) { return d.x; });
+                .x(function (node) { return node.x; })
+                .y(function (node) { return node.y; });
             var verticalCurveLink = linkVertical()
-                .x(function (d) { return d.x; })
-                .y(function (d) { return d.y; });
-            var horizontalStraightLink = function (source, target) {
-                return "M" + source.y + "," + source.x +
-                    "L" + target.y + "," + target.x;
-            };
-            var verticalStraightLink = function (source, target) {
+                .x(function (node) { return node.x; })
+                .y(function (node) { return node.y; });
+            var straightLink = function (source, target) {
                 return "M" + source.x + "," + source.y +
                     "L" + target.x + "," + target.y;
             };
-            var horizontalSquareLink = function (source, target) {
-                return "M" + source.y + "," + source.x +
-                    "H" + (source.y + 15) + // change +15
-                    "V" + target.x +
-                    "H" + target.y;
-            };
-            var verticalSquareLink = function (source, target) {
+            var nodePerpendicularLineLength = this.nodeHeight * 2 + generalProperties.extraDepthWiseHeight * 0.3;
+            var horizontalCornerLink = function (source, target) {
                 return "M" + source.x + "," + source.y +
+                    "H" + (source.x + nodePerpendicularLineLength) + // TODO: change +15
+                    "V" + target.y +
+                    "H" + target.x;
+            };
+            var verticalCornerLink = function (source, target) {
+                return "M" + source.x + "," + source.y +
+                    "V" + (source.y + nodePerpendicularLineLength) + // TODO: change +15
                     "H" + target.x +
                     "V" + target.y;
             };
-            var createPath = function (d) {
+            var createPath = function (nodeLink) {
                 if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
-                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                        return horizontalCurveLink(d);
+                    if (generalProperties.orientation == TreeOrientation.horizontal) {
+                        return horizontalCurveLink(nodeLink);
                     }
                     else {
-                        return verticalCurveLink(d);
+                        return verticalCurveLink(nodeLink);
                     }
                 }
                 else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
-                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                        return horizontalStraightLink(d.source, d.target);
-                    }
-                    else {
-                        return verticalStraightLink(d.source, d.target);
-                    }
+                    return straightLink(nodeLink.source, nodeLink.target);
                 }
                 else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
-                    if (generalProperties.orientaion == TreeOrientation.horizontal) {
-                        return horizontalSquareLink(d.source, d.target);
+                    if (generalProperties.orientation == TreeOrientation.horizontal) {
+                        return horizontalCornerLink(nodeLink.source, nodeLink.target);
                     }
                     else {
-                        return verticalSquareLink(d.source, d.target);
+                        return verticalCornerLink(nodeLink.source, nodeLink.target);
                     }
                 }
             };
             var nodeLinks = this.treeGroup.selectAll('path.link')
-                .data(this.treeDataLinks, function (d) {
-                return (d.source.data.name + d.target.data.name + d.source.x + d.target.y);
+                .data(this.treeDataLinks, function (nodeLink) {
+                return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
             });
             var nodeLinksEnter = nodeLinks.enter()
                 .insert("path", "g") //will insert path before g elements
@@ -4469,35 +4856,35 @@
                 .attr('stroke-width', nodeLinkProperties.strokeWidth)
                 .attr('d', createPath);
             nodeLinksEnter.append('title')
-                .text(function (d) {
-                return d.source.data.name + " -> " + d.target.data.name;
+                .text(function (nodeLink) {
+                return nodeLink.source.data.name + " -> " + nodeLink.target.data.name;
             });
             if (nodeLinkProperties.animation) {
-                nodeLinksEnter.each(function (d, i, elements) {
+                nodeLinksEnter.each(function (nodeLink, i, elements) {
                     var linkLength = elements[i].getTotalLength();
                     select(elements[i])
                         .attr('stroke-dasharray', linkLength + " " + linkLength)
                         .attr("stroke-dashoffset", linkLength)
                         .transition()
-                        .delay(_this.nodeAnimationDuration - (_this.nodeAnimationDuration / 3))
-                        .duration(_this.nodeLinkAnimationDuration)
+                        .delay(nodeAnimationDuration - (nodeAnimationDuration / 3))
+                        .duration(nodeLinkProperties.animationDuration)
                         // .ease(d3_ease.easeCubicIn)
                         .attr("stroke-dashoffset", 0);
                 });
                 nodeLinks.attr('stroke-dasharray', '')
                     .attr("stroke-dashoffset", 0)
                     .transition()
-                    .duration(this.nodeLinkAnimationDuration)
+                    .duration(nodeLinkProperties.animationDuration)
                     .attr('d', createPath);
                 nodeLinks.exit()
-                    .each(function (d, i, elements) {
+                    .each(function (nodeLink, i, elements) {
                     var linkLength = elements[i].getTotalLength();
                     select(elements[i])
                         .attr('stroke-dasharray', linkLength + " " + linkLength)
                         .attr("stroke-dashoffset", 0)
                         .attr('opacity', 1)
                         .transition()
-                        .duration(_this.nodeLinkAnimationDuration)
+                        .duration(nodeLinkProperties.animationDuration)
                         // .ease(d3_ease.easeCubicIn)
                         .attr("stroke-dashoffset", linkLength)
                         .attr('opacity', 0)
@@ -4511,513 +4898,402 @@
                 nodeLinks.exit().remove();
             }
         };
-        D3Tree.prototype._createNodeText = function () {
-            var generalProperties = this.treeProperties.generalProperties;
-            if (generalProperties.orientaion == TreeOrientation.vertical) {
-                this._createNodeTextForVerticalTree();
-            }
-            else {
-                this._createNodeTextForHorizontalTree();
-            }
-        };
-        D3Tree.prototype._createNodeTextForVerticalTree = function () {
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
-            var nodeTexts = this.treeGroup.selectAll('text.nodeText')
-                .data(this.treeDataArray)
-                .enter()
-                .append('g')
-                .attr('transform', function (d) {
-                return Translate(d.x + nodeShapeProperties.size + 8, d.y);
-            });
-            nodeTexts.append('text')
-                .attr('fill', nodeTextProperties.foregroundColor)
-                .style('dominant-baseline', 'central')
-                .text(function (d) {
-                return d.data.name;
-            });
-            nodeTexts.style('text-anchor', function (d, i, elements) {
-                var textWidth = elements[i].getBBox().width;
-                var textAnchor = (textWidth < nodeShapeProperties.size) ? 'middle' : 'start';
-                return textAnchor;
-            });
-            nodeTexts.append('title')
-                .text(function (d) {
-                return d.data.name;
-            });
-            if (nodeTextProperties.enableBackground) {
-                nodeTexts.insert('rect', 'text')
-                    .each(function (d, i, elements) {
-                    var svgRect = elements[i].parentNode.getBBox();
-                    select(elements[i])
-                        .attr('x', svgRect.x - 2)
-                        .attr('y', svgRect.y - 2)
-                        .attr('height', svgRect.height + 4)
-                        .attr('width', svgRect.width + 4)
-                        .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-                });
-            }
-        };
-        D3Tree.prototype._createNodeTextForHorizontalTree = function () {
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
-            var nodeTexts = this.treeGroup.selectAll('text.nodeText')
-                .data(this.treeDataArray)
-                .enter()
-                .append('g')
-                .attr('transform', function (d) {
-                var translate = d.children ? Translate(d.y - nodeShapeProperties.size - 8, d.x) :
-                    Translate(d.y + nodeShapeProperties.size + 8, d.x);
-                return translate;
-            });
-            nodeTexts.append('text')
-                .attr('fill', nodeTextProperties.foregroundColor)
-                .style('dominant-baseline', 'central')
-                .text(function (d) {
-                return d.data.name;
-            });
-            nodeTexts.style('text-anchor', function (d, i, elements) {
-                var textAnchor = d.children ? 'end' : 'start';
-                return textAnchor;
-            });
-            nodeTexts.append('title')
-                .text(function (d) {
-                return d.data.name;
-            });
-            if (nodeTextProperties.enableBackground) {
-                nodeTexts.insert('rect', 'text')
-                    .each(function (d, i, elements) {
-                    var svgRect = elements[i].parentNode.getBBox();
-                    select(elements[i])
-                        .attr('x', svgRect.x - 2)
-                        .attr('y', svgRect.y - 2)
-                        .attr('height', svgRect.height + 4)
-                        .attr('width', svgRect.width + 4)
-                        .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-                });
-            }
-        };
-        D3Tree.prototype._updateRootSVGSize = function (height, width) {
-            this.rootSVG.style('height', height + "px")
-                .style('width', width + "px");
-        };
-        D3Tree.prototype._updateTreeGroupTransform = function (x, y) {
-            this.treeGroup.attr('transform', Translate(x, y));
-        };
         return D3Tree;
     }());
-    //enums
-    var TreeNodeShapeTypes;
-    (function (TreeNodeShapeTypes) {
-        TreeNodeShapeTypes["circle"] = "circle";
-        TreeNodeShapeTypes["square"] = "square";
-    })(TreeNodeShapeTypes || (TreeNodeShapeTypes = {}));
-    var TreeNodeLinkTypes;
-    (function (TreeNodeLinkTypes) {
-        TreeNodeLinkTypes["straight"] = "straight";
-        TreeNodeLinkTypes["curved"] = "curved";
-        TreeNodeLinkTypes["corner"] = "corner";
-    })(TreeNodeLinkTypes || (TreeNodeLinkTypes = {}));
-    var TreeOrientation;
-    (function (TreeOrientation) {
-        TreeOrientation["horizontal"] = "horizontal";
-        TreeOrientation["vertical"] = "vertical";
-    })(TreeOrientation || (TreeOrientation = {}));
 
-    // let data =
-    // {
-    //     "name": "Top Level",
-    //     "children": [
-    //         {
-    //             "name": "Level 2: A",
-    //             "children": [
-    //                 { "name": "Son of A" },
-    //                 { "name": "Daughter of A" }
-    //             ]
-    //         },
-    //         { "name": "Level 2: B" }
-    //     ]
-    // };
     var data = {
-        "name": "flare",
+        "name": "Top Level",
         "children": [
             {
-                "name": "analytics",
+                "name": "Level 2: A",
                 "children": [
-                    {
-                        "name": "cluster",
-                        "children": [
-                            { "name": "AgglomerativeCluster", "size": 3938 },
-                            { "name": "CommunityStructure", "size": 3812 },
-                            { "name": "HierarchicalCluster", "size": 6714 },
-                            { "name": "MergeEdge", "size": 743 }
-                        ]
-                    },
-                    {
-                        "name": "graph",
-                        "children": [
-                            { "name": "BetweennessCentrality", "size": 3534 },
-                            { "name": "LinkDistance", "size": 5731 },
-                            { "name": "MaxFlowMinCut", "size": 7840 },
-                            { "name": "ShortestPaths", "size": 5914 },
-                            { "name": "SpanningTree", "size": 3416 }
-                        ]
-                    },
-                    {
-                        "name": "optimization",
-                        "children": [
-                            { "name": "AspectRatioBanker", "size": 7074 }
-                        ]
-                    }
+                    { "name": "Son of A" },
+                    { "name": "Daughter of A" }
                 ]
             },
-            {
-                "name": "animate",
-                "children": [
-                    { "name": "Easing", "size": 17010 },
-                    { "name": "FunctionSequence", "size": 5842 },
-                    {
-                        "name": "interpolate",
-                        "children": [
-                            { "name": "ArrayInterpolator", "size": 1983 },
-                            { "name": "ColorInterpolator", "size": 2047 },
-                            { "name": "DateInterpolator", "size": 1375 },
-                            { "name": "Interpolator", "size": 8746 },
-                            { "name": "MatrixInterpolator", "size": 2202 },
-                            { "name": "NumberInterpolator", "size": 1382 },
-                            { "name": "ObjectInterpolator", "size": 1629 },
-                            { "name": "PointInterpolator", "size": 1675 },
-                            { "name": "RectangleInterpolator", "size": 2042 }
-                        ]
-                    },
-                    { "name": "ISchedulable", "size": 1041 },
-                    { "name": "Parallel", "size": 5176 },
-                    { "name": "Pause", "size": 449 },
-                    { "name": "Scheduler", "size": 5593 },
-                    { "name": "Sequence", "size": 5534 },
-                    { "name": "Transition", "size": 9201 },
-                    { "name": "Transitioner", "size": 19975 },
-                    { "name": "TransitionEvent", "size": 1116 },
-                    { "name": "Tween", "size": 6006 }
-                ]
-            },
-            {
-                "name": "data",
-                "children": [
-                    {
-                        "name": "converters",
-                        "children": [
-                            { "name": "Converters", "size": 721 },
-                            { "name": "DelimitedTextConverter", "size": 4294 },
-                            { "name": "GraphMLConverter", "size": 9800 },
-                            { "name": "IDataConverter", "size": 1314 },
-                            { "name": "JSONConverter", "size": 2220 }
-                        ]
-                    },
-                    { "name": "DataField", "size": 1759 },
-                    { "name": "DataSchema", "size": 2165 },
-                    { "name": "DataSet", "size": 586 },
-                    { "name": "DataSource", "size": 3331 },
-                    { "name": "DataTable", "size": 772 },
-                    { "name": "DataUtil", "size": 3322 }
-                ]
-            },
-            {
-                "name": "display",
-                "children": [
-                    { "name": "DirtySprite", "size": 8833 },
-                    { "name": "LineSprite", "size": 1732 },
-                    { "name": "RectSprite", "size": 3623 },
-                    { "name": "TextSprite", "size": 10066 }
-                ]
-            },
-            {
-                "name": "flex",
-                "children": [
-                    { "name": "FlareVis", "size": 4116 }
-                ]
-            },
-            {
-                "name": "physics",
-                "children": [
-                    { "name": "DragForce", "size": 1082 },
-                    { "name": "GravityForce", "size": 1336 },
-                    { "name": "IForce", "size": 319 },
-                    { "name": "NBodyForce", "size": 10498 },
-                    { "name": "Particle", "size": 2822 },
-                    { "name": "Simulation", "size": 9983 },
-                    { "name": "Spring", "size": 2213 },
-                    { "name": "SpringForce", "size": 1681 }
-                ]
-            },
-            {
-                "name": "query",
-                "children": [
-                    { "name": "AggregateExpression", "size": 1616 },
-                    { "name": "And", "size": 1027 },
-                    { "name": "Arithmetic", "size": 3891 },
-                    { "name": "Average", "size": 891 },
-                    { "name": "BinaryExpression", "size": 2893 },
-                    { "name": "Comparison", "size": 5103 },
-                    { "name": "CompositeExpression", "size": 3677 },
-                    { "name": "Count", "size": 781 },
-                    { "name": "DateUtil", "size": 4141 },
-                    { "name": "Distinct", "size": 933 },
-                    { "name": "Expression", "size": 5130 },
-                    { "name": "ExpressionIterator", "size": 3617 },
-                    { "name": "Fn", "size": 3240 },
-                    { "name": "If", "size": 2732 },
-                    { "name": "IsA", "size": 2039 },
-                    { "name": "Literal", "size": 1214 },
-                    { "name": "Match", "size": 3748 },
-                    { "name": "Maximum", "size": 843 },
-                    {
-                        "name": "methods",
-                        "children": [
-                            { "name": "add", "size": 593 },
-                            { "name": "and", "size": 330 },
-                            { "name": "average", "size": 287 },
-                            { "name": "count", "size": 277 },
-                            { "name": "distinct", "size": 292 },
-                            { "name": "div", "size": 595 },
-                            { "name": "eq", "size": 594 },
-                            { "name": "fn", "size": 460 },
-                            { "name": "gt", "size": 603 },
-                            { "name": "gte", "size": 625 },
-                            { "name": "iff", "size": 748 },
-                            { "name": "isa", "size": 461 },
-                            { "name": "lt", "size": 597 },
-                            { "name": "lte", "size": 619 },
-                            { "name": "max", "size": 283 },
-                            { "name": "min", "size": 283 },
-                            { "name": "mod", "size": 591 },
-                            { "name": "mul", "size": 603 },
-                            { "name": "neq", "size": 599 },
-                            { "name": "not", "size": 386 },
-                            { "name": "or", "size": 323 },
-                            { "name": "orderby", "size": 307 },
-                            { "name": "range", "size": 772 },
-                            { "name": "select", "size": 296 },
-                            { "name": "stddev", "size": 363 },
-                            { "name": "sub", "size": 600 },
-                            { "name": "sum", "size": 280 },
-                            { "name": "update", "size": 307 },
-                            { "name": "variance", "size": 335 },
-                            { "name": "where", "size": 299 },
-                            { "name": "xor", "size": 354 },
-                            { "name": "_", "size": 264 }
-                        ]
-                    },
-                    { "name": "Minimum", "size": 843 },
-                    { "name": "Not", "size": 1554 },
-                    { "name": "Or", "size": 970 },
-                    { "name": "Query", "size": 13896 },
-                    { "name": "Range", "size": 1594 },
-                    { "name": "StringUtil", "size": 4130 },
-                    { "name": "Sum", "size": 791 },
-                    { "name": "Variable", "size": 1124 },
-                    { "name": "Variance", "size": 1876 },
-                    { "name": "Xor", "size": 1101 }
-                ]
-            },
-            {
-                "name": "scale",
-                "children": [
-                    { "name": "IScaleMap", "size": 2105 },
-                    { "name": "LinearScale", "size": 1316 },
-                    { "name": "LogScale", "size": 3151 },
-                    { "name": "OrdinalScale", "size": 3770 },
-                    { "name": "QuantileScale", "size": 2435 },
-                    { "name": "QuantitativeScale", "size": 4839 },
-                    { "name": "RootScale", "size": 1756 },
-                    { "name": "Scale", "size": 4268 },
-                    { "name": "ScaleType", "size": 1821 },
-                    { "name": "TimeScale", "size": 5833 }
-                ]
-            },
-            {
-                "name": "util",
-                "children": [
-                    { "name": "Arrays", "size": 8258 },
-                    { "name": "Colors", "size": 10001 },
-                    { "name": "Dates", "size": 8217 },
-                    { "name": "Displays", "size": 12555 },
-                    { "name": "Filter", "size": 2324 },
-                    { "name": "Geometry", "size": 10993 },
-                    {
-                        "name": "heap",
-                        "children": [
-                            { "name": "FibonacciHeap", "size": 9354 },
-                            { "name": "HeapNode", "size": 1233 }
-                        ]
-                    },
-                    { "name": "IEvaluable", "size": 335 },
-                    { "name": "IPredicate", "size": 383 },
-                    { "name": "IValueProxy", "size": 874 },
-                    {
-                        "name": "math",
-                        "children": [
-                            { "name": "DenseMatrix", "size": 3165 },
-                            { "name": "IMatrix", "size": 2815 },
-                            { "name": "SparseMatrix", "size": 3366 }
-                        ]
-                    },
-                    { "name": "Maths", "size": 17705 },
-                    { "name": "Orientation", "size": 1486 },
-                    {
-                        "name": "palette",
-                        "children": [
-                            { "name": "ColorPalette", "size": 6367 },
-                            { "name": "Palette", "size": 1229 },
-                            { "name": "ShapePalette", "size": 2059 },
-                            { "name": "SizePalette", "size": 2291 }
-                        ]
-                    },
-                    { "name": "Property", "size": 5559 },
-                    { "name": "Shapes", "size": 19118 },
-                    { "name": "Sort", "size": 6887 },
-                    { "name": "Stats", "size": 6557 },
-                    { "name": "Strings", "size": 22026 }
-                ]
-            },
-            {
-                "name": "vis",
-                "children": [
-                    {
-                        "name": "axis",
-                        "children": [
-                            { "name": "Axes", "size": 1302 },
-                            { "name": "Axis", "size": 24593 },
-                            { "name": "AxisGridLine", "size": 652 },
-                            { "name": "AxisLabel", "size": 636 },
-                            { "name": "CartesianAxes", "size": 6703 }
-                        ]
-                    },
-                    {
-                        "name": "controls",
-                        "children": [
-                            { "name": "AnchorControl", "size": 2138 },
-                            { "name": "ClickControl", "size": 3824 },
-                            { "name": "Control", "size": 1353 },
-                            { "name": "ControlList", "size": 4665 },
-                            { "name": "DragControl", "size": 2649 },
-                            { "name": "ExpandControl", "size": 2832 },
-                            { "name": "HoverControl", "size": 4896 },
-                            { "name": "IControl", "size": 763 },
-                            { "name": "PanZoomControl", "size": 5222 },
-                            { "name": "SelectionControl", "size": 7862 },
-                            { "name": "TooltipControl", "size": 8435 }
-                        ]
-                    },
-                    {
-                        "name": "data",
-                        "children": [
-                            { "name": "Data", "size": 20544 },
-                            { "name": "DataList", "size": 19788 },
-                            { "name": "DataSprite", "size": 10349 },
-                            { "name": "EdgeSprite", "size": 3301 },
-                            { "name": "NodeSprite", "size": 19382 },
-                            {
-                                "name": "render",
-                                "children": [
-                                    { "name": "ArrowType", "size": 698 },
-                                    { "name": "EdgeRenderer", "size": 5569 },
-                                    { "name": "IRenderer", "size": 353 },
-                                    { "name": "ShapeRenderer", "size": 2247 }
-                                ]
-                            },
-                            { "name": "ScaleBinding", "size": 11275 },
-                            { "name": "Tree", "size": 7147 },
-                            { "name": "TreeBuilder", "size": 9930 }
-                        ]
-                    },
-                    {
-                        "name": "events",
-                        "children": [
-                            { "name": "DataEvent", "size": 2313 },
-                            { "name": "SelectionEvent", "size": 1880 },
-                            { "name": "TooltipEvent", "size": 1701 },
-                            { "name": "VisualizationEvent", "size": 1117 }
-                        ]
-                    },
-                    {
-                        "name": "legend",
-                        "children": [
-                            { "name": "Legend", "size": 20859 },
-                            { "name": "LegendItem", "size": 4614 },
-                            { "name": "LegendRange", "size": 10530 }
-                        ]
-                    },
-                    {
-                        "name": "operator",
-                        "children": [
-                            {
-                                "name": "distortion",
-                                "children": [
-                                    { "name": "BifocalDistortion", "size": 4461 },
-                                    { "name": "Distortion", "size": 6314 },
-                                    { "name": "FisheyeDistortion", "size": 3444 }
-                                ]
-                            },
-                            {
-                                "name": "encoder",
-                                "children": [
-                                    { "name": "ColorEncoder", "size": 3179 },
-                                    { "name": "Encoder", "size": 4060 },
-                                    { "name": "PropertyEncoder", "size": 4138 },
-                                    { "name": "ShapeEncoder", "size": 1690 },
-                                    { "name": "SizeEncoder", "size": 1830 }
-                                ]
-                            },
-                            {
-                                "name": "filter",
-                                "children": [
-                                    { "name": "FisheyeTreeFilter", "size": 5219 },
-                                    { "name": "GraphDistanceFilter", "size": 3165 },
-                                    { "name": "VisibilityFilter", "size": 3509 }
-                                ]
-                            },
-                            { "name": "IOperator", "size": 1286 },
-                            {
-                                "name": "label",
-                                "children": [
-                                    { "name": "Labeler", "size": 9956 },
-                                    { "name": "RadialLabeler", "size": 3899 },
-                                    { "name": "StackedAreaLabeler", "size": 3202 }
-                                ]
-                            },
-                            {
-                                "name": "layout",
-                                "children": [
-                                    { "name": "AxisLayout", "size": 6725 },
-                                    { "name": "BundledEdgeRouter", "size": 3727 },
-                                    { "name": "CircleLayout", "size": 9317 },
-                                    { "name": "CirclePackingLayout", "size": 12003 },
-                                    { "name": "DendrogramLayout", "size": 4853 },
-                                    { "name": "ForceDirectedLayout", "size": 8411 },
-                                    { "name": "IcicleTreeLayout", "size": 4864 },
-                                    { "name": "IndentedTreeLayout", "size": 3174 },
-                                    { "name": "Layout", "size": 7881 },
-                                    { "name": "NodeLinkTreeLayout", "size": 12870 },
-                                    { "name": "PieLayout", "size": 2728 },
-                                    { "name": "RadialTreeLayout", "size": 12348 },
-                                    { "name": "RandomLayout", "size": 870 },
-                                    { "name": "StackedAreaLayout", "size": 9121 },
-                                    { "name": "TreeMapLayout", "size": 9191 }
-                                ]
-                            },
-                            { "name": "Operator", "size": 2490 },
-                            { "name": "OperatorList", "size": 5248 },
-                            { "name": "OperatorSequence", "size": 4190 },
-                            { "name": "OperatorSwitch", "size": 2581 },
-                            { "name": "SortOperator", "size": 2023 }
-                        ]
-                    },
-                    { "name": "Visualization", "size": 16540 }
-                ]
-            }
+            { "name": "Level 2: B" }
         ]
     };
+    // let data: TreeData = {
+    //     "name": "flare",
+    //     "children": [
+    //      {
+    //       "name": "analytics",
+    //       "children": [
+    //        {
+    //         "name": "cluster",
+    //         "children": [
+    //          {"name": "AgglomerativeCluster", "weight": 3938},
+    //          {"name": "CommunityStructure", "weight": 3812},
+    //          {"name": "HierarchicalCluster", "weight": 6714},
+    //          {"name": "MergeEdge", "weight": 743}
+    //         ]
+    //        },
+    //        {
+    //         "name": "graph",
+    //         "children": [
+    //          {"name": "BetweennessCentrality", "weight": 3534},
+    //          {"name": "LinkDistance", "weight": 5731},
+    //          {"name": "MaxFlowMinCut", "weight": 7840},
+    //          {"name": "ShortestPaths", "weight": 5914},
+    //          {"name": "SpanningTree", "weight": 3416}
+    //         ]
+    //        },
+    //        {
+    //         "name": "optimization",
+    //         "children": [
+    //          {"name": "AspectRatioBanker", "weight": 7074}
+    //         ]
+    //        }
+    //       ]
+    //      },
+    //      {
+    //       "name": "animate",
+    //       "children": [
+    //        {"name": "Easing", "weight": 17010},
+    //        {"name": "FunctionSequence", "weight": 5842},
+    //        {
+    //         "name": "interpolate",
+    //         "children": [
+    //          {"name": "ArrayInterpolator", "weight": 1983},
+    //          {"name": "ColorInterpolator", "weight": 2047},
+    //          {"name": "DateInterpolator", "weight": 1375},
+    //          {"name": "Interpolator", "weight": 8746},
+    //          {"name": "MatrixInterpolator", "weight": 2202},
+    //          {"name": "NumberInterpolator", "weight": 1382},
+    //          {"name": "ObjectInterpolator", "weight": 1629},
+    //          {"name": "PointInterpolator", "weight": 1675},
+    //          {"name": "RectangleInterpolator", "weight": 2042}
+    //         ]
+    //        },
+    //        {"name": "ISchedulable", "weight": 1041},
+    //        {"name": "Parallel", "weight": 5176},
+    //        {"name": "Pause", "weight": 449},
+    //        {"name": "Scheduler", "weight": 5593},
+    //        {"name": "Sequence", "weight": 5534},
+    //        {"name": "Transition", "weight": 9201},
+    //        {"name": "Transitioner", "weight": 19975},
+    //        {"name": "TransitionEvent", "weight": 1116},
+    //        {"name": "Tween", "weight": 6006}
+    //       ]
+    //      },
+    //      {
+    //       "name": "data",
+    //       "children": [
+    //        {
+    //         "name": "converters",
+    //         "children": [
+    //          {"name": "Converters", "weight": 721},
+    //          {"name": "DelimitedTextConverter", "weight": 4294},
+    //          {"name": "GraphMLConverter", "weight": 9800},
+    //          {"name": "IDataConverter", "weight": 1314},
+    //          {"name": "JSONConverter", "weight": 2220}
+    //         ]
+    //        },
+    //        {"name": "DataField", "weight": 1759},
+    //        {"name": "DataSchema", "weight": 2165},
+    //        {"name": "DataSet", "weight": 586},
+    //        {"name": "DataSource", "weight": 3331},
+    //        {"name": "DataTable", "weight": 772},
+    //        {"name": "DataUtil", "weight": 3322}
+    //       ]
+    //      },
+    //      {
+    //       "name": "display",
+    //       "children": [
+    //        {"name": "DirtySprite", "weight": 8833},
+    //        {"name": "LineSprite", "weight": 1732},
+    //        {"name": "RectSprite", "weight": 3623},
+    //        {"name": "TextSprite", "weight": 10066}
+    //       ]
+    //      },
+    //      {
+    //       "name": "flex",
+    //       "children": [
+    //        {"name": "FlareVis", "weight": 4116}
+    //       ]
+    //      },
+    //      {
+    //       "name": "physics",
+    //       "children": [
+    //        {"name": "DragForce", "weight": 1082},
+    //        {"name": "GravityForce", "weight": 1336},
+    //        {"name": "IForce", "weight": 319},
+    //        {"name": "NBodyForce", "weight": 10498},
+    //        {"name": "Particle", "weight": 2822},
+    //        {"name": "Simulation", "weight": 9983},
+    //        {"name": "Spring", "weight": 2213},
+    //        {"name": "SpringForce", "weight": 1681}
+    //       ]
+    //      },
+    //      {
+    //       "name": "query",
+    //       "children": [
+    //        {"name": "AggregateExpression", "weight": 1616},
+    //        {"name": "And", "weight": 1027},
+    //        {"name": "Arithmetic", "weight": 3891},
+    //        {"name": "Average", "weight": 891},
+    //        {"name": "BinaryExpression", "weight": 2893},
+    //        {"name": "Comparison", "weight": 5103},
+    //        {"name": "CompositeExpression", "weight": 3677},
+    //        {"name": "Count", "weight": 781},
+    //        {"name": "DateUtil", "weight": 4141},
+    //        {"name": "Distinct", "weight": 933},
+    //        {"name": "Expression", "weight": 5130},
+    //        {"name": "ExpressionIterator", "weight": 3617},
+    //        {"name": "Fn", "weight": 3240},
+    //        {"name": "If", "weight": 2732},
+    //        {"name": "IsA", "weight": 2039},
+    //        {"name": "Literal", "weight": 1214},
+    //        {"name": "Match", "weight": 3748},
+    //        {"name": "Maximum", "weight": 843},
+    //        {
+    //         "name": "methods",
+    //         "children": [
+    //          {"name": "add", "weight": 593},
+    //          {"name": "and", "weight": 330},
+    //          {"name": "average", "weight": 287},
+    //          {"name": "count", "weight": 277},
+    //          {"name": "distinct", "weight": 292},
+    //          {"name": "div", "weight": 595},
+    //          {"name": "eq", "weight": 594},
+    //          {"name": "fn", "weight": 460},
+    //          {"name": "gt", "weight": 603},
+    //          {"name": "gte", "weight": 625},
+    //          {"name": "iff", "weight": 748},
+    //          {"name": "isa", "weight": 461},
+    //          {"name": "lt", "weight": 597},
+    //          {"name": "lte", "weight": 619},
+    //          {"name": "max", "weight": 283},
+    //          {"name": "min", "weight": 283},
+    //          {"name": "mod", "weight": 591},
+    //          {"name": "mul", "weight": 603},
+    //          {"name": "neq", "weight": 599},
+    //          {"name": "not", "weight": 386},
+    //          {"name": "or", "weight": 323},
+    //          {"name": "orderby", "weight": 307},
+    //          {"name": "range", "weight": 772},
+    //          {"name": "select", "weight": 296},
+    //          {"name": "stddev", "weight": 363},
+    //          {"name": "sub", "weight": 600},
+    //          {"name": "sum", "weight": 280},
+    //          {"name": "update", "weight": 307},
+    //          {"name": "variance", "weight": 335},
+    //          {"name": "where", "weight": 299},
+    //          {"name": "xor", "weight": 354},
+    //          {"name": "_", "weight": 264}
+    //         ]
+    //        },
+    //        {"name": "Minimum", "weight": 843},
+    //        {"name": "Not", "weight": 1554},
+    //        {"name": "Or", "weight": 970},
+    //        {"name": "Query", "weight": 13896},
+    //        {"name": "Range", "weight": 1594},
+    //        {"name": "StringUtil", "weight": 4130},
+    //        {"name": "Sum", "weight": 791},
+    //        {"name": "Variable", "weight": 1124},
+    //        {"name": "Variance", "weight": 1876},
+    //        {"name": "Xor", "weight": 1101}
+    //       ]
+    //      },
+    //      {
+    //       "name": "scale",
+    //       "children": [
+    //        {"name": "IScaleMap", "weight": 2105},
+    //        {"name": "LinearScale", "weight": 1316},
+    //        {"name": "LogScale", "weight": 3151},
+    //        {"name": "OrdinalScale", "weight": 3770},
+    //        {"name": "QuantileScale", "weight": 2435},
+    //        {"name": "QuantitativeScale", "weight": 4839},
+    //        {"name": "RootScale", "weight": 1756},
+    //        {"name": "Scale", "weight": 4268},
+    //        {"name": "ScaleType", "weight": 1821},
+    //        {"name": "TimeScale", "weight": 5833}
+    //       ]
+    //      },
+    //      {
+    //       "name": "util",
+    //       "children": [
+    //        {"name": "Arrays", "weight": 8258},
+    //        {"name": "Colors", "weight": 10001},
+    //        {"name": "Dates", "weight": 8217},
+    //        {"name": "Displays", "weight": 12555},
+    //        {"name": "Filter", "weight": 2324},
+    //        {"name": "Geometry", "weight": 10993},
+    //        {
+    //         "name": "heap",
+    //         "children": [
+    //          {"name": "FibonacciHeap", "weight": 9354},
+    //          {"name": "HeapNode", "weight": 1233}
+    //         ]
+    //        },
+    //        {"name": "IEvaluable", "weight": 335},
+    //        {"name": "IPredicate", "weight": 383},
+    //        {"name": "IValueProxy", "weight": 874},
+    //        {
+    //         "name": "math",
+    //         "children": [
+    //          {"name": "DenseMatrix", "weight": 3165},
+    //          {"name": "IMatrix", "weight": 2815},
+    //          {"name": "SparseMatrix", "weight": 3366}
+    //         ]
+    //        },
+    //        {"name": "Maths", "weight": 17705},
+    //        {"name": "Orientation", "weight": 1486},
+    //        {
+    //         "name": "palette",
+    //         "children": [
+    //          {"name": "ColorPalette", "weight": 6367},
+    //          {"name": "Palette", "weight": 1229},
+    //          {"name": "ShapePalette", "weight": 2059},
+    //          {"name": "SizePalette", "weight": 2291}
+    //         ]
+    //        },
+    //        {"name": "Property", "weight": 5559},
+    //        {"name": "Shapes", "weight": 19118},
+    //        {"name": "Sort", "weight": 6887},
+    //        {"name": "Stats", "weight": 6557},
+    //        {"name": "Strings", "weight": 22026}
+    //       ]
+    //      },
+    //      {
+    //       "name": "vis",
+    //       "children": [
+    //        {
+    //         "name": "axis",
+    //         "children": [
+    //          {"name": "Axes", "weight": 1302},
+    //          {"name": "Axis", "weight": 24593},
+    //          {"name": "AxisGridLine", "weight": 652},
+    //          {"name": "AxisLabel", "weight": 636},
+    //          {"name": "CartesianAxes", "weight": 6703}
+    //         ]
+    //        },
+    //        {
+    //         "name": "controls",
+    //         "children": [
+    //          {"name": "AnchorControl", "weight": 2138},
+    //          {"name": "ClickControl", "weight": 3824},
+    //          {"name": "Control", "weight": 1353},
+    //          {"name": "ControlList", "weight": 4665},
+    //          {"name": "DragControl", "weight": 2649},
+    //          {"name": "ExpandControl", "weight": 2832},
+    //          {"name": "HoverControl", "weight": 4896},
+    //          {"name": "IControl", "weight": 763},
+    //          {"name": "PanZoomControl", "weight": 5222},
+    //          {"name": "SelectionControl", "weight": 7862},
+    //          {"name": "TooltipControl", "weight": 8435}
+    //         ]
+    //        },
+    //        {
+    //         "name": "data",
+    //         "children": [
+    //          {"name": "Data", "weight": 20544},
+    //          {"name": "DataList", "weight": 19788},
+    //          {"name": "DataSprite", "weight": 10349},
+    //          {"name": "EdgeSprite", "weight": 3301},
+    //          {"name": "NodeSprite", "weight": 19382},
+    //          {
+    //           "name": "render",
+    //           "children": [
+    //            {"name": "ArrowType", "weight": 698},
+    //            {"name": "EdgeRenderer", "weight": 5569},
+    //            {"name": "IRenderer", "weight": 353},
+    //            {"name": "ShapeRenderer", "weight": 2247}
+    //           ]
+    //          },
+    //          {"name": "ScaleBinding", "weight": 11275},
+    //          {"name": "Tree", "weight": 7147},
+    //          {"name": "TreeBuilder", "weight": 9930}
+    //         ]
+    //        },
+    //        {
+    //         "name": "events",
+    //         "children": [
+    //          {"name": "DataEvent", "weight": 2313},
+    //          {"name": "SelectionEvent", "weight": 1880},
+    //          {"name": "TooltipEvent", "weight": 1701},
+    //          {"name": "VisualizationEvent", "weight": 1117}
+    //         ]
+    //        },
+    //        {
+    //         "name": "legend",
+    //         "children": [
+    //          {"name": "Legend", "weight": 20859},
+    //          {"name": "LegendItem", "weight": 4614},
+    //          {"name": "LegendRange", "weight": 10530}
+    //         ]
+    //        },
+    //        {
+    //         "name": "operator",
+    //         "children": [
+    //          {
+    //           "name": "distortion",
+    //           "children": [
+    //            {"name": "BifocalDistortion", "weight": 4461},
+    //            {"name": "Distortion", "weight": 6314},
+    //            {"name": "FisheyeDistortion", "weight": 3444}
+    //           ]
+    //          },
+    //          {
+    //           "name": "encoder",
+    //           "children": [
+    //            {"name": "ColorEncoder", "weight": 3179},
+    //            {"name": "Encoder", "weight": 4060},
+    //            {"name": "PropertyEncoder", "weight": 4138},
+    //            {"name": "ShapeEncoder", "weight": 1690},
+    //            {"name": "SizeEncoder", "weight": 1830}
+    //           ]
+    //          },
+    //          {
+    //           "name": "filter",
+    //           "children": [
+    //            {"name": "FisheyeTreeFilter", "weight": 5219},
+    //            {"name": "GraphDistanceFilter", "weight": 3165},
+    //            {"name": "VisibilityFilter", "weight": 3509}
+    //           ]
+    //          },
+    //          {"name": "IOperator", "weight": 1286},
+    //          {
+    //           "name": "label",
+    //           "children": [
+    //            {"name": "Labeler", "weight": 9956},
+    //            {"name": "RadialLabeler", "weight": 3899},
+    //            {"name": "StackedAreaLabeler", "weight": 3202}
+    //           ]
+    //          },
+    //          {
+    //           "name": "layout",
+    //           "children": [
+    //            {"name": "AxisLayout", "weight": 6725},
+    //            {"name": "BundledEdgeRouter", "weight": 3727},
+    //            {"name": "CircleLayout", "weight": 9317},
+    //            {"name": "CirclePackingLayout", "weight": 12003},
+    //            {"name": "DendrogramLayout", "weight": 4853},
+    //            {"name": "ForceDirectedLayout", "weight": 8411},
+    //            {"name": "IcicleTreeLayout", "weight": 4864},
+    //            {"name": "IndentedTreeLayout", "weight": 3174},
+    //            {"name": "Layout", "weight": 7881},
+    //            {"name": "NodeLinkTreeLayout", "weight": 12870},
+    //            {"name": "PieLayout", "weight": 2728},
+    //            {"name": "RadialTreeLayout", "weight": 12348},
+    //            {"name": "RandomLayout", "weight": 870},
+    //            {"name": "StackedAreaLayout", "weight": 9121},
+    //            {"name": "TreeMapLayout", "weight": 9191}
+    //           ]
+    //          },
+    //          {"name": "Operator", "weight": 2490},
+    //          {"name": "OperatorList", "weight": 5248},
+    //          {"name": "OperatorSequence", "weight": 4190},
+    //          {"name": "OperatorSwitch", "weight": 2581},
+    //          {"name": "SortOperator", "weight": 2023}
+    //         ]
+    //        },
+    //        {"name": "Visualization", "weight": 16540}
+    //       ]
+    //      }
+    //     ]
+    //    };
     var height = 600;
     var width = 800;
     var rootSVG = select('body')
@@ -5026,19 +5302,24 @@
         .style('width', width + 'px')
         .style('background-color', '#F2F2F2');
     var treeGeneralProperties = {
-        'orientaion': TreeOrientation.horizontal,
-        'defaultMaxDepth': 1,
+        'orientation': TreeOrientation.vertical,
+        'defaultMaxDepth': 2,
         'isClusterLayout': false,
         'containerHeight': height,
-        'containerWidth': width
+        'containerWidth': width,
+        'treeHeight': height,
+        'treeWidth': width,
+        'extraDepthWiseHeight': 0
     };
     var treeNodeShapeProperties = {
-        'shapeType': TreeNodeShapeTypes.circle,
-        'size': 5,
+        'shapeType': TreeNodeShapeTypes.rect,
+        'radius': 10,
+        'width': 100,
+        'height': 30,
         'expandedNodeColor': 'red',
         'collapsedNodeColor': 'green',
-        'stroke': 'none',
-        'strokeWidth': 0,
+        'stroke': 'pink',
+        'strokeWidth': 2,
         'animation': true
     };
     var treeNodeLinkProperties = {
@@ -5051,8 +5332,12 @@
         'fontFamily': 'Arial',
         'fontSize': '20px',
         'foregroundColor': 'black',
-        'enableBackground': false,
-        'backgroundColor': '#7fa7e8'
+        'showBackground': false,
+        'backgroundColor': 'pink',
+        'maxAllowedWidth': 100,
+        'textPadding': 5,
+        'spaceBetweenNodeAndText': 10,
+        'showTextInsideShape': true
     };
     var treeProperties = {
         generalProperties: treeGeneralProperties,

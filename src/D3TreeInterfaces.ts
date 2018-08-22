@@ -10,16 +10,16 @@ export interface TreePointNode<Datum> extends HierarchyPointNode<Datum> {
     /**
      * It is used to stores collpased nodes.
      */
-    _children?: HierarchyNode<any>[] | null;
+    _children?: HierarchyNode<Datum>[] | null;
     /**
      * Will be used to show image on the node and expand and collpase color will be applied
-     * on stroke of the image.
+     * on stroke of the image if only image is visible on node.
      */
     imageURL?: string | null;
     /**
      * Will be used to add URL to the text.
      */
-    textURL?: string | null;
+    externalURL?: string | null;
 }
 
 export interface TreeData {
@@ -38,7 +38,7 @@ export interface TreeData {
     /**
      * Optional text url that will be used to add hyperlink to node text.
      */
-    textURL?: string | null;
+    externalURL?: string | null;
     /**
      * Weigt of the node. Can be used to sort the nodes.
      */
@@ -61,9 +61,11 @@ export interface TreeNodeShapeProperties {
     expandedNodeColor: string,
     collapsedNodeColor: string,
     stroke: string,
-    size: number,
     strokeWidth: number,
     animation: boolean,
+    radius?: number,
+    width?: number,
+    height?: number,
     animationDuration?: number
 }
 
@@ -88,7 +90,11 @@ export interface TreeNodeTextProperties {
     /**
      * Use textPadding when showBackground is true. It will set padding between text and background in px.
      */
-    textPadding?: number
+    textPadding?: number,
+    /**
+     * If `true` then will display text inside the shape. Make sure to adjust size of shape so that text fits inside correctly.
+     */
+    showTextInsideShape?: boolean
 }
 
 export interface TreeProperties {
@@ -101,7 +107,7 @@ export interface TreeProperties {
 //enums
 export enum TreeNodeShapeTypes {
     circle = 'circle',
-    square = 'square'
+    rect = 'rect'
 }
 
 export enum TreeNodeLinkTypes {

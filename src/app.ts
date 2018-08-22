@@ -428,8 +428,10 @@ let treeGeneralProperties: TreeGeneralProperties = {
 }
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
-    'shapeType' : TreeNodeShapeTypes.circle,
-    'size': 10,
+    'shapeType' : TreeNodeShapeTypes.rect,
+    'radius': 10,
+    'width': 100,
+    'height': 30,
     'expandedNodeColor': 'red',
     'collapsedNodeColor': 'green',
     'stroke': 'pink',
@@ -448,11 +450,12 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
     'fontFamily': 'Arial',
     'fontSize': '20px',
     'foregroundColor': 'black',
-    'showBackground': true,
+    'showBackground': false,
     'backgroundColor': 'pink',
     'maxAllowedWidth': 100,
     'textPadding': 5,
-    'spaceBetweenNodeAndText': 10
+    'spaceBetweenNodeAndText': 10,
+    'showTextInsideShape': true
 }
 
 let treeProperties: TreeProperties = {

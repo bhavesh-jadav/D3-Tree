@@ -34,11 +34,10 @@ export class D3Tree {
     private nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
 
     // node variables *******************************************************************************************************
-    // holds all nodes selection i.e. nodes that needs to be created, updated or removed.
-    private nodes: Selection<BaseType, TreePointNode<any>, BaseType, any>;
-    // holds all nodes that needs to created.
-    private nodesEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>;
-    private nodeShapeSize: number; // in case of circle 2*nodeShapeProperties.size, in case of square nodeShapeProperties.size
+    private nodes: Selection<BaseType, TreePointNode<any>, BaseType, any>; // holds all nodes selection i.e. nodes that needs to be created, updated or removed.
+    private nodesEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>; // holds all nodes that needs to created.
+    private nodeHeight: number;
+    private nodeWidth: number;
 
     /**
      * 
@@ -58,6 +57,7 @@ export class D3Tree {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
 
         // set maxExpandedDepth to defaultMaxDepth
         this.maxExpandedDepth = generalProperties.defaultMaxDepth;
@@ -85,11 +85,17 @@ export class D3Tree {
             .append('g')
             .classed('treeGroup', true);
 
-        // calculate node size for spacing purpose.
+        // calculate node size i.e. acutal height and width for spacing purpose.
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-            this.nodeShapeSize = 2 * nodeShapeProperties.size;
-        } else {
-            this.nodeShapeSize = nodeShapeProperties.size;
+            this.nodeHeight = this.nodeWidth = 2 * nodeShapeProperties.radius;
+        } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+            this.nodeHeight = nodeShapeProperties.height;
+            this.nodeWidth = nodeShapeProperties.width;
+        }
+
+        // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
+        if (nodeTextProperties.showTextInsideShape) {
+            nodeTextProperties.maxAllowedWidth = this.nodeWidth;
         }
 
         // only add zoom when no fixed treeheight and treewidth is provided.
@@ -184,21 +190,6 @@ export class D3Tree {
             'fontWeight': nodeTextProperties.fontWeight
         }
         if (this.dynamicHeightAndWidth) {
-            
-            // Find depth wise max children count to calculate proper tree height.
-            // base code credit: http://bl.ocks.org/robschmuecker/7880033
-            // let depthWiseChildrenCount: number[] = [1];
-            // let countDepthwiseChildren = (level: number, node: any) => {
-            //     if (node.children && node.children.length > 0 && level < this.maxExpandedDepth) {
-            //         if (depthWiseChildrenCount.length <= level + 1) depthWiseChildrenCount.push(0);
-            //         depthWiseChildrenCount[level + 1] += node.children.length;
-            //         node.children.forEach((d) => {
-            //             countDepthwiseChildren(level + 1, d);
-            //         });
-            //     }
-            // };
-            // countDepthwiseChildren(0, this.hierarchyData);
-
             // Find longest text width present in tree to calculate proper spacing between nodes.
             let maxTextWidth = 0;
             let findMaxLabelLength = (level: number, node: any) => {
@@ -216,7 +207,7 @@ export class D3Tree {
                 (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
 
             // if node shape size is greater than text height than use that for treeHeight calculation
-            let perNodeHeight = textHeight > this.nodeShapeSize ? textHeight : this.nodeShapeSize;
+            let perNodeHeight = textHeight > this.nodeHeight ? textHeight : this.nodeHeight;
             let maxPerNodeTextWidth = nodeTextProperties.maxAllowedWidth + (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
             treeWidth = (maxTextWidth + generalProperties.extraDepthWiseHeight) * (this.maxExpandedDepth + 1);
             if (generalProperties.orientation == TreeOrientation.horizontal) {
@@ -252,9 +243,10 @@ export class D3Tree {
                 });
             this.rootSVG.call(this.rootSVGZoomListner);
         } else {
+            // to set right margin
             let maxLeaveNodesTextWidth = 0;
             let rootNodeTextWidth = MeasureTextSize(textProperties, this.hierarchyData.data.name).width +
-                nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeSize / 2;
+                nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeWidth / 2;
 
             this.hierarchyData.leaves().forEach((node: TreePointNode<any>) => {
                 let textWidth = MeasureTextSize(textProperties, node.data.name).width;
@@ -333,16 +325,17 @@ export class D3Tree {
 
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
             this.nodesEnter.append('circle')
-                .attr('r', nodeShapeProperties.size)
+                .attr('r', nodeShapeProperties.radius)
                 .attr('stroke', nodeShapeProperties.stroke)
                 .attr('stroke-width', nodeShapeProperties.strokeWidth);
-        } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.square) {
-            let squareTransformXY = 0 - nodeShapeProperties.size / 2;
+        } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+            let squareTransformX = 0 - nodeShapeProperties.width / 2;
+            let squareTransformY = 0 - nodeShapeProperties.height / 2;
             this.nodesEnter.append('rect')
-                .attr('x', squareTransformXY)
-                .attr('y', squareTransformXY)
-                .attr('height', nodeShapeProperties.size)
-                .attr('width', nodeShapeProperties.size)
+                .attr('x', squareTransformX)
+                .attr('y', squareTransformY)
+                .attr('height', nodeShapeProperties.height)
+                .attr('width', nodeShapeProperties.width)
                 .attr('stroke', nodeShapeProperties.stroke)
                 .attr('stroke-width', nodeShapeProperties.strokeWidth);
         }
@@ -404,12 +397,19 @@ export class D3Tree {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        let textProperties: TextProperties = {
+            fontFamily: nodeTextProperties.fontFamily,
+            fontSize: nodeTextProperties.fontSize,
+            fontStyle: nodeTextProperties.fontStyle,
+            fontWeight: nodeTextProperties.fontWeight
+        };
+        let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
 
         let adjustXValue = (node: TreePointNode<any>) => {
             if (node.children) {
-                return -this.nodeShapeSize - nodeTextProperties.spaceBetweenNodeAndText;
+                return -this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText;
             } else {
-                return this.nodeShapeSize + nodeTextProperties.spaceBetweenNodeAndText;
+                return this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText;
             }
         }
 
@@ -434,7 +434,12 @@ export class D3Tree {
                     //     return textAnchor;
                     // })
                     .text((node: any) => {
-                        return node.data.name;
+                        if (nodeTextProperties.showTextInsideShape) {
+                            textProperties.text = node.data.name;
+                            return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+                        } else {
+                            return node.data.name;
+                        }
                     });
 
                 nodeTextGroup.append('title')
@@ -453,24 +458,37 @@ export class D3Tree {
                 }
 
                 if (generalProperties.orientation == TreeOrientation.horizontal) {
-                    nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
-                        if (node.children) {
-                            return Translate(-(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText), 0);
-                        } else {
-                            return Translate(nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText, 0);
-                        }
-                    });
+                    if (nodeTextProperties.showTextInsideShape) {
+                        nodeTextGroup.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
+                            return Translate(this.nodeHeight / 2, 0);
+                        });
+                    } else {
+                        nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
+                            if (node.children) {
+                                return Translate(-(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText), 0);
+                            } else {
+                                return Translate(nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText, 0);
+                            }
+                        });
+                    }
                 } else {
-                    nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
-                        let x = svgRect.width / 2;
-                        let y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText;
-                        if (node.children) {
-                            return Translate(-x, -y);
-                        } else {
-                            return Translate(-x, y);
-                        }
-                    });
+                    if (nodeTextProperties.showTextInsideShape) {
+                        nodeTextGroup.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', Translate(0, 0));
+                    } else {
+                        nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
+                            let x = svgRect.width / 2;
+                            let y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText;
+                            if (node.children) {
+                                return Translate(-x, -y);
+                            } else {
+                                return Translate(-x, y);
+                            }
+                        });
+                    }
                 }
+                
 
                 // select(elements[i]).attr('transform', Translate(10, 0));
 
@@ -515,15 +533,15 @@ export class D3Tree {
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
 
 
-        nodeTextEnter.selectAll('text')
-            .attr('x', adjustXValue)
-            .style('text-anchor', (node: TreePointNode<any>) => {
-                let textAnchor = node.children ? 'end': 'start';
-                return textAnchor;
-            })
-            .text((node: any) => {
-                return node.data.name;
-            });
+        // nodeTextEnter.selectAll('text')
+        //     .attr('x', adjustXValue)
+        //     .style('text-anchor', (node: TreePointNode<any>) => {
+        //         let textAnchor = node.children ? 'end': 'start';
+        //         return textAnchor;
+        //     })
+        //     .text((node: any) => {
+        //         return node.data.name;
+        //     });
 
         // this.nodes.select('g.nodeText').select('text')
         //     .attr('x', adjustXValue);
@@ -586,9 +604,9 @@ export class D3Tree {
                 let totalSpacing = 0;
                 let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
                 if (node.children) {
-                    totalSpacing = -this.nodeShapeSize - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+                    totalSpacing = -this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
                 } else {
-                    totalSpacing = this.nodeShapeSize + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+                    totalSpacing = this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
                 }
                 return totalSpacing;
             })
@@ -659,7 +677,7 @@ export class D3Tree {
                 "L" + target.x + "," + target.y;
         }
 
-        let nodePerpendicularLineLength = this.nodeShapeSize * 2 + generalProperties.extraDepthWiseHeight * 0.3;
+        let nodePerpendicularLineLength = this.nodeHeight * 2 + generalProperties.extraDepthWiseHeight * 0.3;
         let horizontalCornerLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +
                 "H" + (source.x + nodePerpendicularLineLength) +  // TODO: change +15
