@@ -4294,15 +4294,15 @@
                 .classed('treeGroup', true);
             // calculate node size i.e. acutal height and width for spacing purpose.
             if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-                this.nodeHeight = this.nodeWidth = 2 * nodeShapeProperties.radius;
+                this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.radius;
             }
             else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-                this.nodeHeight = nodeShapeProperties.height;
-                this.nodeWidth = nodeShapeProperties.width;
+                this.nodeShapeHeight = nodeShapeProperties.height;
+                this.nodeShapeWidth = nodeShapeProperties.width;
             }
             // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
             if (nodeTextProperties.showTextInsideShape) {
-                nodeTextProperties.maxAllowedWidth = this.nodeWidth;
+                nodeTextProperties.maxAllowedWidth = this.nodeShapeWidth;
             }
             // only add zoom when no fixed treeheight and treewidth is provided.
             if (generalProperties.treeHeight == undefined && generalProperties.treeWidth == undefined) {
@@ -4327,13 +4327,13 @@
             var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
             var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
-            var nodeTextproperties = this.treeProperties.nodeTextProperties;
+            var nodeTextProperties = this.treeProperties.nodeTextProperties;
             // general properties
             if (generalProperties.isClusterLayout == undefined) {
                 generalProperties.isClusterLayout = false;
             }
-            if (generalProperties.extraDepthWiseHeight == undefined) {
-                generalProperties.extraDepthWiseHeight = 0;
+            if (generalProperties.extraDepthinPx == undefined) {
+                generalProperties.extraDepthinPx = 0;
             }
             // node shape properties
             if (nodeShapeProperties.animationDuration == undefined) {
@@ -4344,32 +4344,35 @@
                 nodeLinkProperties.animationDuration = 1000;
             }
             // node text properties
-            if (nodeTextproperties.backgroundColor == undefined) {
-                nodeTextproperties.backgroundColor = '#F2F2F2';
+            if (nodeTextProperties.backgroundColor == undefined) {
+                nodeTextProperties.backgroundColor = '#F2F2F2';
             }
-            if (nodeTextproperties.fontWeight == undefined) {
-                nodeTextproperties.fontWeight = 'normal';
+            if (nodeTextProperties.fontWeight == undefined) {
+                nodeTextProperties.fontWeight = 'normal';
             }
-            if (nodeTextproperties.fontStyle == undefined) {
-                nodeTextproperties.fontStyle = 'normal';
+            if (nodeTextProperties.fontStyle == undefined) {
+                nodeTextProperties.fontStyle = 'normal';
             }
-            if (nodeTextproperties.spaceBetweenNodeAndText == undefined) {
-                nodeTextproperties.spaceBetweenNodeAndText = 5;
+            if (nodeTextProperties.spaceBetweenNodeAndText == undefined) {
+                nodeTextProperties.spaceBetweenNodeAndText = 5;
             }
-            if (nodeTextproperties.maxAllowedWidth == undefined) {
-                nodeTextproperties.maxAllowedWidth = 50;
+            if (nodeTextProperties.maxAllowedWidth == undefined) {
+                nodeTextProperties.maxAllowedWidth = 50;
             }
-            if (nodeTextproperties.textPadding == undefined) {
-                if (nodeTextproperties.showBackground) {
-                    nodeTextproperties.textPadding = 4;
+            if (nodeTextProperties.showTextInsideShape == undefined) {
+                nodeTextProperties.showTextInsideShape = false;
+            }
+            if (nodeTextProperties.textPadding == undefined || !nodeTextProperties.showBackground) {
+                if (nodeTextProperties.showBackground || nodeTextProperties.showTextInsideShape) {
+                    nodeTextProperties.textPadding = 4;
                 }
                 else {
-                    nodeTextproperties.textPadding = 0;
+                    nodeTextProperties.textPadding = 0;
                 }
             }
         };
         /**
-         * Creates D3 tree data based on json data provided in constructor
+         * Creates D3 tree data based on json tree data provided in constructor
          */
         D3Tree.prototype._createTreeData = function () {
             var _this = this;
@@ -4387,35 +4390,47 @@
             };
             if (this.dynamicHeightAndWidth) {
                 // Find longest text width present in tree to calculate proper spacing between nodes.
-                var maxTextWidth_1 = 0;
-                var findMaxLabelLength_1 = function (level, node) {
-                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
-                    if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
-                        node.children.forEach(function (element) {
-                            findMaxLabelLength_1(level + 1, element);
-                        });
+                if (nodeTextProperties.showTextInsideShape) {
+                    treeWidth = (this.nodeShapeWidth + generalProperties.extraDepthinPx) * (this.maxExpandedDepth + 1);
+                    if (generalProperties.orientation == TreeOrientation.horizontal) {
+                        treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth;
                     }
-                    maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
-                };
-                findMaxLabelLength_1(0, this.hierarchyData);
-                var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height +
-                    (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-                // if node shape size is greater than text height than use that for treeHeight calculation
-                var perNodeHeight = textHeight > this.nodeHeight ? textHeight : this.nodeHeight;
-                var maxPerNodeTextWidth = nodeTextProperties.maxAllowedWidth + (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-                treeWidth = (maxTextWidth_1 + generalProperties.extraDepthWiseHeight) * (this.maxExpandedDepth + 1);
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
+                    else {
+                        treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth * 1.3;
+                    }
                 }
                 else {
-                    treeHeight = this.hierarchyData.leaves().length * maxPerNodeTextWidth;
+                    var maxTextWidth_1 = 0;
+                    var findMaxTextLength_1 = function (level, node) {
+                        var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                        if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
+                            node.children.forEach(function (element) {
+                                findMaxTextLength_1(level + 1, element);
+                            });
+                        }
+                        maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
+                    };
+                    findMaxTextLength_1(0, this.hierarchyData);
+                    var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
+                    // if node shape size is greater than text height than use that for treeHeight calculation
+                    var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight;
+                    var perNodeWidth = 0;
+                    perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
+                    treeWidth = (maxTextWidth_1 + generalProperties.extraDepthinPx) * (this.maxExpandedDepth + 1);
+                    if (generalProperties.orientation == TreeOrientation.horizontal) {
+                        treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
+                    }
+                    else {
+                        treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
+                    }
                 }
                 // adding zoom to tree.
-                var minZoomScale = Math.min(generalProperties.containerHeight / generalProperties.treeHeight, generalProperties.containerWidth / generalProperties.treeWidth);
+                var minZoomScale = Math.min(generalProperties.containerHeight / treeHeight, generalProperties.containerWidth / treeWidth);
                 minZoomScale = minZoomScale - (minZoomScale * 0.05);
                 // zoom will chnage transform of group element which is child of root SVG and parent of tree
                 var treeGroupZoomAction = function () {
                     _this.treeGroup.attr('transform', event.transform);
+                    // this.treeGroup.style('cursor', 'pointer');
                 };
                 // settings max translate extent for zooming
                 // let maxTranslateX = generalProperties.containerWidth - (generalProperties.treeWidth * minZoomScale);
@@ -4431,21 +4446,56 @@
                 this.rootSVG.call(this.rootSVGZoomListner);
             }
             else {
-                // to set right margin
-                var maxLeaveNodesTextWidth_1 = 0;
-                var rootNodeTextWidth = MeasureTextSize(textProperties, this.hierarchyData.data.name).width +
-                    nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeWidth / 2;
-                this.hierarchyData.leaves().forEach(function (node) {
-                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
-                    maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
-                });
-                maxLeaveNodesTextWidth_1 += nodeTextProperties.textPadding;
-                treeHeight = generalProperties.treeHeight;
-                treeWidth = generalProperties.treeWidth - (rootNodeTextWidth + maxLeaveNodesTextWidth_1 + nodeTextProperties.spaceBetweenNodeAndText);
-                console.log(treeWidth);
-                this.treeGroup.transition()
-                    .duration(1000)
-                    .attr('transform', Translate(rootNodeTextWidth, 0));
+                // to set right margin for fixed height and width tree, we do following calculations.
+                var fixedMargin = 10;
+                var rootNodeTextSize = MeasureTextSize(textProperties, this.hierarchyData.data.name);
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    var maxLeaveNodesTextWidth_1 = 0;
+                    var rootNodeWidth = 0;
+                    var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
+                    if (nodeTextProperties.showTextInsideShape) {
+                        rootNodeWidth = this.nodeShapeWidth / 2;
+                    }
+                    else {
+                        rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
+                    }
+                    this.hierarchyData.leaves().forEach(function (node) {
+                        var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                        maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
+                    });
+                    if (nodeTextProperties.showTextInsideShape) {
+                        treeWidth = generalProperties.treeWidth - this.nodeShapeWidth;
+                    }
+                    else {
+                        treeWidth = generalProperties.treeWidth - (rootNodeWidth + maxLeaveNodesTextWidth_1 + fixedNodeWidth);
+                    }
+                    treeWidth -= fixedMargin * 2;
+                    treeHeight = generalProperties.treeHeight - fixedMargin * 2;
+                    this.treeGroup.transition()
+                        .duration(1000)
+                        .attr('transform', Translate(rootNodeWidth + fixedMargin, fixedMargin));
+                }
+                else {
+                    var nodeHeight = 0;
+                    var fixedNodeHeight = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
+                    if (nodeTextProperties.showTextInsideShape) {
+                        nodeHeight = this.nodeShapeHeight / 2;
+                    }
+                    else {
+                        nodeHeight = rootNodeTextSize.height + fixedNodeHeight;
+                    }
+                    if (nodeTextProperties.showTextInsideShape) {
+                        treeWidth = generalProperties.treeHeight - this.nodeShapeHeight;
+                    }
+                    else {
+                        treeWidth = generalProperties.treeHeight - nodeHeight * 2;
+                    }
+                    treeHeight = generalProperties.treeWidth - fixedMargin * 2;
+                    treeWidth -= fixedMargin * 2;
+                    this.treeGroup.transition()
+                        .duration(1000)
+                        .attr('transform', Translate(fixedMargin, fixedMargin + nodeHeight));
+                }
             }
             if (generalProperties.isClusterLayout) {
                 this.tree = cluster().size([treeHeight, treeWidth]);
@@ -4484,7 +4534,6 @@
         };
         D3Tree.prototype._createNodes = function () {
             var _this = this;
-            var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
             var click = function (node) {
                 if (node.children) { // collapse
@@ -4524,7 +4573,12 @@
             this.nodesEnter.attr('fill', function (node) {
                 return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
             })
-                .on('click', click);
+                .on('click', click)
+                .on('mouseover', function (node, i, elements) {
+                if (node.children) {
+                    select(elements[i]).style('cursor', 'pointer');
+                }
+            });
             this.nodesEnter.append('title')
                 .text(function (node) {
                 return node.data.name;
@@ -4578,13 +4632,13 @@
                 fontStyle: nodeTextProperties.fontStyle,
                 fontWeight: nodeTextProperties.fontWeight
             };
-            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
             var nodeTextEnter = this.nodesEnter
                 .append('g')
                 .classed('nodeText', true)
                 .each(function (node, i, elements) {
                 var nodeTextGroup = select(elements[i]);
-                nodeTextGroup.append('text')
+                var nodeText = nodeTextGroup.append('text')
                     .attr('fill', nodeTextProperties.foregroundColor)
                     .style('dominant-baseline', 'middle')
                     .style('font-size', nodeTextProperties.fontSize)
@@ -4597,54 +4651,36 @@
                     //     return textAnchor;
                     // })
                     .text(function (node) {
-                    if (nodeTextProperties.showTextInsideShape) {
-                        textProperties.text = node.data.name;
-                        return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-                    }
-                    else {
-                        return node.data.name;
-                    }
+                    textProperties.text = node.data.name;
+                    return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
                 });
                 nodeTextGroup.append('title')
                     .text(function (node) {
                     return node.data.name;
                 });
-                var svgRect = nodeTextGroup.select('text').node().getBBox();
-                if (nodeTextProperties.showBackground) {
-                    nodeTextGroup.insert('rect', 'text')
-                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
-                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
-                        .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-                }
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
-                    if (nodeTextProperties.showTextInsideShape) {
-                        nodeTextGroup.style('text-anchor', 'middle');
-                        nodeTextGroup.attr('transform', function (node) {
-                            return Translate(_this.nodeHeight / 2, 0);
-                        });
-                    }
-                    else {
-                        nodeTextGroup.attr('transform', function (node) {
-                            if (node.children) {
-                                return Translate(-(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText), 0);
-                            }
-                            else {
-                                return Translate(nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText, 0);
-                            }
-                        });
-                    }
+                var svgRect = nodeText.node().getBBox();
+                if (nodeTextProperties.showTextInsideShape) {
+                    nodeText.style('text-anchor', 'middle');
+                    nodeTextGroup.attr('transform', Translate(0, 0));
                 }
                 else {
-                    if (nodeTextProperties.showTextInsideShape) {
-                        nodeTextGroup.style('text-anchor', 'middle');
-                        nodeTextGroup.attr('transform', Translate(0, 0));
+                    if (generalProperties.orientation == TreeOrientation.horizontal) {
+                        nodeTextGroup.attr('transform', function (node) {
+                            var x = 0;
+                            var y = 0;
+                            if (node.children) {
+                                x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2);
+                            }
+                            else {
+                                x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2;
+                            }
+                            return Translate(x, y);
+                        });
                     }
                     else {
                         nodeTextGroup.attr('transform', function (node) {
                             var x = svgRect.width / 2;
-                            var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText;
+                            var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
                             if (node.children) {
                                 return Translate(-x, -y);
                             }
@@ -4653,6 +4689,14 @@
                             }
                         });
                     }
+                }
+                if (nodeTextProperties.showBackground && !nodeTextProperties.showTextInsideShape) {
+                    nodeTextGroup.insert('rect', 'text')
+                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
+                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
+                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
+                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                        .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
                 // select(elements[i]).attr('transform', Translate(10, 0));
                 // console.log(elements[i]);
@@ -4747,10 +4791,10 @@
                 var totalSpacing = 0;
                 var backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2 : 0;
                 if (node.children) {
-                    totalSpacing = -_this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+                    totalSpacing = -_this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
                 }
                 else {
-                    totalSpacing = _this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+                    totalSpacing = _this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
                 }
                 return totalSpacing;
             })
@@ -4810,16 +4854,22 @@
                 return "M" + source.x + "," + source.y +
                     "L" + target.x + "," + target.y;
             };
-            var nodePerpendicularLineLength = this.nodeHeight * 2 + generalProperties.extraDepthWiseHeight * 0.3;
+            var nodePerpendicularLineLength = 0;
+            if (generalProperties.orientation == TreeOrientation.horizontal) {
+                nodePerpendicularLineLength = this.nodeShapeWidth + generalProperties.extraDepthinPx * 0.3;
+            }
+            else {
+                nodePerpendicularLineLength = this.nodeShapeHeight + generalProperties.extraDepthinPx * 0.3;
+            }
             var horizontalCornerLink = function (source, target) {
                 return "M" + source.x + "," + source.y +
-                    "H" + (source.x + nodePerpendicularLineLength) + // TODO: change +15
+                    "H" + (source.x + nodePerpendicularLineLength) +
                     "V" + target.y +
                     "H" + target.x;
             };
             var verticalCornerLink = function (source, target) {
                 return "M" + source.x + "," + source.y +
-                    "V" + (source.y + nodePerpendicularLineLength) + // TODO: change +15
+                    "V" + (source.y + nodePerpendicularLineLength) +
                     "H" + target.x +
                     "V" + target.y;
             };
@@ -4900,400 +4950,402 @@
         };
         return D3Tree;
     }());
+    //# sourceMappingURL=D3Tree.js.map
 
+    // let data =
+    // {
+    //     "name": "Top Level",
+    //     "children": [
+    //         {
+    //             "name": "Level 2: A",
+    //             "children": [
+    //                 { "name": "Son of A" },
+    //                 { "name": "Daughter of A" }
+    //             ]
+    //         },
+    //         { "name": "Level 2: B" }
+    //     ]
+    // };
     var data = {
-        "name": "Top Level",
+        "name": "flare",
         "children": [
             {
-                "name": "Level 2: A",
+                "name": "analytics",
                 "children": [
-                    { "name": "Son of A" },
-                    { "name": "Daughter of A" }
+                    {
+                        "name": "cluster",
+                        "children": [
+                            { "name": "AgglomerativeCluster", "weight": 3938 },
+                            { "name": "CommunityStructure", "weight": 3812 },
+                            { "name": "HierarchicalCluster", "weight": 6714 },
+                            { "name": "MergeEdge", "weight": 743 }
+                        ]
+                    },
+                    {
+                        "name": "graph",
+                        "children": [
+                            { "name": "BetweennessCentrality", "weight": 3534 },
+                            { "name": "LinkDistance", "weight": 5731 },
+                            { "name": "MaxFlowMinCut", "weight": 7840 },
+                            { "name": "ShortestPaths", "weight": 5914 },
+                            { "name": "SpanningTree", "weight": 3416 }
+                        ]
+                    },
+                    {
+                        "name": "optimization",
+                        "children": [
+                            { "name": "AspectRatioBanker", "weight": 7074 }
+                        ]
+                    }
                 ]
             },
-            { "name": "Level 2: B" }
+            {
+                "name": "animate",
+                "children": [
+                    { "name": "Easing", "weight": 17010 },
+                    { "name": "FunctionSequence", "weight": 5842 },
+                    {
+                        "name": "interpolate",
+                        "children": [
+                            { "name": "ArrayInterpolator", "weight": 1983 },
+                            { "name": "ColorInterpolator", "weight": 2047 },
+                            { "name": "DateInterpolator", "weight": 1375 },
+                            { "name": "Interpolator", "weight": 8746 },
+                            { "name": "MatrixInterpolator", "weight": 2202 },
+                            { "name": "NumberInterpolator", "weight": 1382 },
+                            { "name": "ObjectInterpolator", "weight": 1629 },
+                            { "name": "PointInterpolator", "weight": 1675 },
+                            { "name": "RectangleInterpolator", "weight": 2042 }
+                        ]
+                    },
+                    { "name": "ISchedulable", "weight": 1041 },
+                    { "name": "Parallel", "weight": 5176 },
+                    { "name": "Pause", "weight": 449 },
+                    { "name": "Scheduler", "weight": 5593 },
+                    { "name": "Sequence", "weight": 5534 },
+                    { "name": "Transition", "weight": 9201 },
+                    { "name": "Transitioner", "weight": 19975 },
+                    { "name": "TransitionEvent", "weight": 1116 },
+                    { "name": "Tween", "weight": 6006 }
+                ]
+            },
+            {
+                "name": "data",
+                "children": [
+                    {
+                        "name": "converters",
+                        "children": [
+                            { "name": "Converters", "weight": 721 },
+                            { "name": "DelimitedTextConverter", "weight": 4294 },
+                            { "name": "GraphMLConverter", "weight": 9800 },
+                            { "name": "IDataConverter", "weight": 1314 },
+                            { "name": "JSONConverter", "weight": 2220 }
+                        ]
+                    },
+                    { "name": "DataField", "weight": 1759 },
+                    { "name": "DataSchema", "weight": 2165 },
+                    { "name": "DataSet", "weight": 586 },
+                    { "name": "DataSource", "weight": 3331 },
+                    { "name": "DataTable", "weight": 772 },
+                    { "name": "DataUtil", "weight": 3322 }
+                ]
+            },
+            {
+                "name": "display",
+                "children": [
+                    { "name": "DirtySprite", "weight": 8833 },
+                    { "name": "LineSprite", "weight": 1732 },
+                    { "name": "RectSprite", "weight": 3623 },
+                    { "name": "TextSprite", "weight": 10066 }
+                ]
+            },
+            {
+                "name": "flex",
+                "children": [
+                    { "name": "FlareVis", "weight": 4116 }
+                ]
+            },
+            {
+                "name": "physics",
+                "children": [
+                    { "name": "DragForce", "weight": 1082 },
+                    { "name": "GravityForce", "weight": 1336 },
+                    { "name": "IForce", "weight": 319 },
+                    { "name": "NBodyForce", "weight": 10498 },
+                    { "name": "Particle", "weight": 2822 },
+                    { "name": "Simulation", "weight": 9983 },
+                    { "name": "Spring", "weight": 2213 },
+                    { "name": "SpringForce", "weight": 1681 }
+                ]
+            },
+            {
+                "name": "query",
+                "children": [
+                    { "name": "AggregateExpression", "weight": 1616 },
+                    { "name": "And", "weight": 1027 },
+                    { "name": "Arithmetic", "weight": 3891 },
+                    { "name": "Average", "weight": 891 },
+                    { "name": "BinaryExpression", "weight": 2893 },
+                    { "name": "Comparison", "weight": 5103 },
+                    { "name": "CompositeExpression", "weight": 3677 },
+                    { "name": "Count", "weight": 781 },
+                    { "name": "DateUtil", "weight": 4141 },
+                    { "name": "Distinct", "weight": 933 },
+                    { "name": "Expression", "weight": 5130 },
+                    { "name": "ExpressionIterator", "weight": 3617 },
+                    { "name": "Fn", "weight": 3240 },
+                    { "name": "If", "weight": 2732 },
+                    { "name": "IsA", "weight": 2039 },
+                    { "name": "Literal", "weight": 1214 },
+                    { "name": "Match", "weight": 3748 },
+                    { "name": "Maximum", "weight": 843 },
+                    {
+                        "name": "methods",
+                        "children": [
+                            { "name": "add", "weight": 593 },
+                            { "name": "and", "weight": 330 },
+                            { "name": "average", "weight": 287 },
+                            { "name": "count", "weight": 277 },
+                            { "name": "distinct", "weight": 292 },
+                            { "name": "div", "weight": 595 },
+                            { "name": "eq", "weight": 594 },
+                            { "name": "fn", "weight": 460 },
+                            { "name": "gt", "weight": 603 },
+                            { "name": "gte", "weight": 625 },
+                            { "name": "iff", "weight": 748 },
+                            { "name": "isa", "weight": 461 },
+                            { "name": "lt", "weight": 597 },
+                            { "name": "lte", "weight": 619 },
+                            { "name": "max", "weight": 283 },
+                            { "name": "min", "weight": 283 },
+                            { "name": "mod", "weight": 591 },
+                            { "name": "mul", "weight": 603 },
+                            { "name": "neq", "weight": 599 },
+                            { "name": "not", "weight": 386 },
+                            { "name": "or", "weight": 323 },
+                            { "name": "orderby", "weight": 307 },
+                            { "name": "range", "weight": 772 },
+                            { "name": "select", "weight": 296 },
+                            { "name": "stddev", "weight": 363 },
+                            { "name": "sub", "weight": 600 },
+                            { "name": "sum", "weight": 280 },
+                            { "name": "update", "weight": 307 },
+                            { "name": "variance", "weight": 335 },
+                            { "name": "where", "weight": 299 },
+                            { "name": "xor", "weight": 354 },
+                            { "name": "_", "weight": 264 }
+                        ]
+                    },
+                    { "name": "Minimum", "weight": 843 },
+                    { "name": "Not", "weight": 1554 },
+                    { "name": "Or", "weight": 970 },
+                    { "name": "Query", "weight": 13896 },
+                    { "name": "Range", "weight": 1594 },
+                    { "name": "StringUtil", "weight": 4130 },
+                    { "name": "Sum", "weight": 791 },
+                    { "name": "Variable", "weight": 1124 },
+                    { "name": "Variance", "weight": 1876 },
+                    { "name": "Xor", "weight": 1101 }
+                ]
+            },
+            {
+                "name": "scale",
+                "children": [
+                    { "name": "IScaleMap", "weight": 2105 },
+                    { "name": "LinearScale", "weight": 1316 },
+                    { "name": "LogScale", "weight": 3151 },
+                    { "name": "OrdinalScale", "weight": 3770 },
+                    { "name": "QuantileScale", "weight": 2435 },
+                    { "name": "QuantitativeScale", "weight": 4839 },
+                    { "name": "RootScale", "weight": 1756 },
+                    { "name": "Scale", "weight": 4268 },
+                    { "name": "ScaleType", "weight": 1821 },
+                    { "name": "TimeScale", "weight": 5833 }
+                ]
+            },
+            {
+                "name": "util",
+                "children": [
+                    { "name": "Arrays", "weight": 8258 },
+                    { "name": "Colors", "weight": 10001 },
+                    { "name": "Dates", "weight": 8217 },
+                    { "name": "Displays", "weight": 12555 },
+                    { "name": "Filter", "weight": 2324 },
+                    { "name": "Geometry", "weight": 10993 },
+                    {
+                        "name": "heap",
+                        "children": [
+                            { "name": "FibonacciHeap", "weight": 9354 },
+                            { "name": "HeapNode", "weight": 1233 }
+                        ]
+                    },
+                    { "name": "IEvaluable", "weight": 335 },
+                    { "name": "IPredicate", "weight": 383 },
+                    { "name": "IValueProxy", "weight": 874 },
+                    {
+                        "name": "math",
+                        "children": [
+                            { "name": "DenseMatrix", "weight": 3165 },
+                            { "name": "IMatrix", "weight": 2815 },
+                            { "name": "SparseMatrix", "weight": 3366 }
+                        ]
+                    },
+                    { "name": "Maths", "weight": 17705 },
+                    { "name": "Orientation", "weight": 1486 },
+                    {
+                        "name": "palette",
+                        "children": [
+                            { "name": "ColorPalette", "weight": 6367 },
+                            { "name": "Palette", "weight": 1229 },
+                            { "name": "ShapePalette", "weight": 2059 },
+                            { "name": "SizePalette", "weight": 2291 }
+                        ]
+                    },
+                    { "name": "Property", "weight": 5559 },
+                    { "name": "Shapes", "weight": 19118 },
+                    { "name": "Sort", "weight": 6887 },
+                    { "name": "Stats", "weight": 6557 },
+                    { "name": "Strings", "weight": 22026 }
+                ]
+            },
+            {
+                "name": "vis",
+                "children": [
+                    {
+                        "name": "axis",
+                        "children": [
+                            { "name": "Axes", "weight": 1302 },
+                            { "name": "Axis", "weight": 24593 },
+                            { "name": "AxisGridLine", "weight": 652 },
+                            { "name": "AxisLabel", "weight": 636 },
+                            { "name": "CartesianAxes", "weight": 6703 }
+                        ]
+                    },
+                    {
+                        "name": "controls",
+                        "children": [
+                            { "name": "AnchorControl", "weight": 2138 },
+                            { "name": "ClickControl", "weight": 3824 },
+                            { "name": "Control", "weight": 1353 },
+                            { "name": "ControlList", "weight": 4665 },
+                            { "name": "DragControl", "weight": 2649 },
+                            { "name": "ExpandControl", "weight": 2832 },
+                            { "name": "HoverControl", "weight": 4896 },
+                            { "name": "IControl", "weight": 763 },
+                            { "name": "PanZoomControl", "weight": 5222 },
+                            { "name": "SelectionControl", "weight": 7862 },
+                            { "name": "TooltipControl", "weight": 8435 }
+                        ]
+                    },
+                    {
+                        "name": "data",
+                        "children": [
+                            { "name": "Data", "weight": 20544 },
+                            { "name": "DataList", "weight": 19788 },
+                            { "name": "DataSprite", "weight": 10349 },
+                            { "name": "EdgeSprite", "weight": 3301 },
+                            { "name": "NodeSprite", "weight": 19382 },
+                            {
+                                "name": "render",
+                                "children": [
+                                    { "name": "ArrowType", "weight": 698 },
+                                    { "name": "EdgeRenderer", "weight": 5569 },
+                                    { "name": "IRenderer", "weight": 353 },
+                                    { "name": "ShapeRenderer", "weight": 2247 }
+                                ]
+                            },
+                            { "name": "ScaleBinding", "weight": 11275 },
+                            { "name": "Tree", "weight": 7147 },
+                            { "name": "TreeBuilder", "weight": 9930 }
+                        ]
+                    },
+                    {
+                        "name": "events",
+                        "children": [
+                            { "name": "DataEvent", "weight": 2313 },
+                            { "name": "SelectionEvent", "weight": 1880 },
+                            { "name": "TooltipEvent", "weight": 1701 },
+                            { "name": "VisualizationEvent", "weight": 1117 }
+                        ]
+                    },
+                    {
+                        "name": "legend",
+                        "children": [
+                            { "name": "Legend", "weight": 20859 },
+                            { "name": "LegendItem", "weight": 4614 },
+                            { "name": "LegendRange", "weight": 10530 }
+                        ]
+                    },
+                    {
+                        "name": "operator",
+                        "children": [
+                            {
+                                "name": "distortion",
+                                "children": [
+                                    { "name": "BifocalDistortion", "weight": 4461 },
+                                    { "name": "Distortion", "weight": 6314 },
+                                    { "name": "FisheyeDistortion", "weight": 3444 }
+                                ]
+                            },
+                            {
+                                "name": "encoder",
+                                "children": [
+                                    { "name": "ColorEncoder", "weight": 3179 },
+                                    { "name": "Encoder", "weight": 4060 },
+                                    { "name": "PropertyEncoder", "weight": 4138 },
+                                    { "name": "ShapeEncoder", "weight": 1690 },
+                                    { "name": "SizeEncoder", "weight": 1830 }
+                                ]
+                            },
+                            {
+                                "name": "filter",
+                                "children": [
+                                    { "name": "FisheyeTreeFilter", "weight": 5219 },
+                                    { "name": "GraphDistanceFilter", "weight": 3165 },
+                                    { "name": "VisibilityFilter", "weight": 3509 }
+                                ]
+                            },
+                            { "name": "IOperator", "weight": 1286 },
+                            {
+                                "name": "label",
+                                "children": [
+                                    { "name": "Labeler", "weight": 9956 },
+                                    { "name": "RadialLabeler", "weight": 3899 },
+                                    { "name": "StackedAreaLabeler", "weight": 3202 }
+                                ]
+                            },
+                            {
+                                "name": "layout",
+                                "children": [
+                                    { "name": "AxisLayout", "weight": 6725 },
+                                    { "name": "BundledEdgeRouter", "weight": 3727 },
+                                    { "name": "CircleLayout", "weight": 9317 },
+                                    { "name": "CirclePackingLayout", "weight": 12003 },
+                                    { "name": "DendrogramLayout", "weight": 4853 },
+                                    { "name": "ForceDirectedLayout", "weight": 8411 },
+                                    { "name": "IcicleTreeLayout", "weight": 4864 },
+                                    { "name": "IndentedTreeLayout", "weight": 3174 },
+                                    { "name": "Layout", "weight": 7881 },
+                                    { "name": "NodeLinkTreeLayout", "weight": 12870 },
+                                    { "name": "PieLayout", "weight": 2728 },
+                                    { "name": "RadialTreeLayout", "weight": 12348 },
+                                    { "name": "RandomLayout", "weight": 870 },
+                                    { "name": "StackedAreaLayout", "weight": 9121 },
+                                    { "name": "TreeMapLayout", "weight": 9191 }
+                                ]
+                            },
+                            { "name": "Operator", "weight": 2490 },
+                            { "name": "OperatorList", "weight": 5248 },
+                            { "name": "OperatorSequence", "weight": 4190 },
+                            { "name": "OperatorSwitch", "weight": 2581 },
+                            { "name": "SortOperator", "weight": 2023 }
+                        ]
+                    },
+                    { "name": "Visualization", "weight": 16540 }
+                ]
+            }
         ]
     };
-    // let data: TreeData = {
-    //     "name": "flare",
-    //     "children": [
-    //      {
-    //       "name": "analytics",
-    //       "children": [
-    //        {
-    //         "name": "cluster",
-    //         "children": [
-    //          {"name": "AgglomerativeCluster", "weight": 3938},
-    //          {"name": "CommunityStructure", "weight": 3812},
-    //          {"name": "HierarchicalCluster", "weight": 6714},
-    //          {"name": "MergeEdge", "weight": 743}
-    //         ]
-    //        },
-    //        {
-    //         "name": "graph",
-    //         "children": [
-    //          {"name": "BetweennessCentrality", "weight": 3534},
-    //          {"name": "LinkDistance", "weight": 5731},
-    //          {"name": "MaxFlowMinCut", "weight": 7840},
-    //          {"name": "ShortestPaths", "weight": 5914},
-    //          {"name": "SpanningTree", "weight": 3416}
-    //         ]
-    //        },
-    //        {
-    //         "name": "optimization",
-    //         "children": [
-    //          {"name": "AspectRatioBanker", "weight": 7074}
-    //         ]
-    //        }
-    //       ]
-    //      },
-    //      {
-    //       "name": "animate",
-    //       "children": [
-    //        {"name": "Easing", "weight": 17010},
-    //        {"name": "FunctionSequence", "weight": 5842},
-    //        {
-    //         "name": "interpolate",
-    //         "children": [
-    //          {"name": "ArrayInterpolator", "weight": 1983},
-    //          {"name": "ColorInterpolator", "weight": 2047},
-    //          {"name": "DateInterpolator", "weight": 1375},
-    //          {"name": "Interpolator", "weight": 8746},
-    //          {"name": "MatrixInterpolator", "weight": 2202},
-    //          {"name": "NumberInterpolator", "weight": 1382},
-    //          {"name": "ObjectInterpolator", "weight": 1629},
-    //          {"name": "PointInterpolator", "weight": 1675},
-    //          {"name": "RectangleInterpolator", "weight": 2042}
-    //         ]
-    //        },
-    //        {"name": "ISchedulable", "weight": 1041},
-    //        {"name": "Parallel", "weight": 5176},
-    //        {"name": "Pause", "weight": 449},
-    //        {"name": "Scheduler", "weight": 5593},
-    //        {"name": "Sequence", "weight": 5534},
-    //        {"name": "Transition", "weight": 9201},
-    //        {"name": "Transitioner", "weight": 19975},
-    //        {"name": "TransitionEvent", "weight": 1116},
-    //        {"name": "Tween", "weight": 6006}
-    //       ]
-    //      },
-    //      {
-    //       "name": "data",
-    //       "children": [
-    //        {
-    //         "name": "converters",
-    //         "children": [
-    //          {"name": "Converters", "weight": 721},
-    //          {"name": "DelimitedTextConverter", "weight": 4294},
-    //          {"name": "GraphMLConverter", "weight": 9800},
-    //          {"name": "IDataConverter", "weight": 1314},
-    //          {"name": "JSONConverter", "weight": 2220}
-    //         ]
-    //        },
-    //        {"name": "DataField", "weight": 1759},
-    //        {"name": "DataSchema", "weight": 2165},
-    //        {"name": "DataSet", "weight": 586},
-    //        {"name": "DataSource", "weight": 3331},
-    //        {"name": "DataTable", "weight": 772},
-    //        {"name": "DataUtil", "weight": 3322}
-    //       ]
-    //      },
-    //      {
-    //       "name": "display",
-    //       "children": [
-    //        {"name": "DirtySprite", "weight": 8833},
-    //        {"name": "LineSprite", "weight": 1732},
-    //        {"name": "RectSprite", "weight": 3623},
-    //        {"name": "TextSprite", "weight": 10066}
-    //       ]
-    //      },
-    //      {
-    //       "name": "flex",
-    //       "children": [
-    //        {"name": "FlareVis", "weight": 4116}
-    //       ]
-    //      },
-    //      {
-    //       "name": "physics",
-    //       "children": [
-    //        {"name": "DragForce", "weight": 1082},
-    //        {"name": "GravityForce", "weight": 1336},
-    //        {"name": "IForce", "weight": 319},
-    //        {"name": "NBodyForce", "weight": 10498},
-    //        {"name": "Particle", "weight": 2822},
-    //        {"name": "Simulation", "weight": 9983},
-    //        {"name": "Spring", "weight": 2213},
-    //        {"name": "SpringForce", "weight": 1681}
-    //       ]
-    //      },
-    //      {
-    //       "name": "query",
-    //       "children": [
-    //        {"name": "AggregateExpression", "weight": 1616},
-    //        {"name": "And", "weight": 1027},
-    //        {"name": "Arithmetic", "weight": 3891},
-    //        {"name": "Average", "weight": 891},
-    //        {"name": "BinaryExpression", "weight": 2893},
-    //        {"name": "Comparison", "weight": 5103},
-    //        {"name": "CompositeExpression", "weight": 3677},
-    //        {"name": "Count", "weight": 781},
-    //        {"name": "DateUtil", "weight": 4141},
-    //        {"name": "Distinct", "weight": 933},
-    //        {"name": "Expression", "weight": 5130},
-    //        {"name": "ExpressionIterator", "weight": 3617},
-    //        {"name": "Fn", "weight": 3240},
-    //        {"name": "If", "weight": 2732},
-    //        {"name": "IsA", "weight": 2039},
-    //        {"name": "Literal", "weight": 1214},
-    //        {"name": "Match", "weight": 3748},
-    //        {"name": "Maximum", "weight": 843},
-    //        {
-    //         "name": "methods",
-    //         "children": [
-    //          {"name": "add", "weight": 593},
-    //          {"name": "and", "weight": 330},
-    //          {"name": "average", "weight": 287},
-    //          {"name": "count", "weight": 277},
-    //          {"name": "distinct", "weight": 292},
-    //          {"name": "div", "weight": 595},
-    //          {"name": "eq", "weight": 594},
-    //          {"name": "fn", "weight": 460},
-    //          {"name": "gt", "weight": 603},
-    //          {"name": "gte", "weight": 625},
-    //          {"name": "iff", "weight": 748},
-    //          {"name": "isa", "weight": 461},
-    //          {"name": "lt", "weight": 597},
-    //          {"name": "lte", "weight": 619},
-    //          {"name": "max", "weight": 283},
-    //          {"name": "min", "weight": 283},
-    //          {"name": "mod", "weight": 591},
-    //          {"name": "mul", "weight": 603},
-    //          {"name": "neq", "weight": 599},
-    //          {"name": "not", "weight": 386},
-    //          {"name": "or", "weight": 323},
-    //          {"name": "orderby", "weight": 307},
-    //          {"name": "range", "weight": 772},
-    //          {"name": "select", "weight": 296},
-    //          {"name": "stddev", "weight": 363},
-    //          {"name": "sub", "weight": 600},
-    //          {"name": "sum", "weight": 280},
-    //          {"name": "update", "weight": 307},
-    //          {"name": "variance", "weight": 335},
-    //          {"name": "where", "weight": 299},
-    //          {"name": "xor", "weight": 354},
-    //          {"name": "_", "weight": 264}
-    //         ]
-    //        },
-    //        {"name": "Minimum", "weight": 843},
-    //        {"name": "Not", "weight": 1554},
-    //        {"name": "Or", "weight": 970},
-    //        {"name": "Query", "weight": 13896},
-    //        {"name": "Range", "weight": 1594},
-    //        {"name": "StringUtil", "weight": 4130},
-    //        {"name": "Sum", "weight": 791},
-    //        {"name": "Variable", "weight": 1124},
-    //        {"name": "Variance", "weight": 1876},
-    //        {"name": "Xor", "weight": 1101}
-    //       ]
-    //      },
-    //      {
-    //       "name": "scale",
-    //       "children": [
-    //        {"name": "IScaleMap", "weight": 2105},
-    //        {"name": "LinearScale", "weight": 1316},
-    //        {"name": "LogScale", "weight": 3151},
-    //        {"name": "OrdinalScale", "weight": 3770},
-    //        {"name": "QuantileScale", "weight": 2435},
-    //        {"name": "QuantitativeScale", "weight": 4839},
-    //        {"name": "RootScale", "weight": 1756},
-    //        {"name": "Scale", "weight": 4268},
-    //        {"name": "ScaleType", "weight": 1821},
-    //        {"name": "TimeScale", "weight": 5833}
-    //       ]
-    //      },
-    //      {
-    //       "name": "util",
-    //       "children": [
-    //        {"name": "Arrays", "weight": 8258},
-    //        {"name": "Colors", "weight": 10001},
-    //        {"name": "Dates", "weight": 8217},
-    //        {"name": "Displays", "weight": 12555},
-    //        {"name": "Filter", "weight": 2324},
-    //        {"name": "Geometry", "weight": 10993},
-    //        {
-    //         "name": "heap",
-    //         "children": [
-    //          {"name": "FibonacciHeap", "weight": 9354},
-    //          {"name": "HeapNode", "weight": 1233}
-    //         ]
-    //        },
-    //        {"name": "IEvaluable", "weight": 335},
-    //        {"name": "IPredicate", "weight": 383},
-    //        {"name": "IValueProxy", "weight": 874},
-    //        {
-    //         "name": "math",
-    //         "children": [
-    //          {"name": "DenseMatrix", "weight": 3165},
-    //          {"name": "IMatrix", "weight": 2815},
-    //          {"name": "SparseMatrix", "weight": 3366}
-    //         ]
-    //        },
-    //        {"name": "Maths", "weight": 17705},
-    //        {"name": "Orientation", "weight": 1486},
-    //        {
-    //         "name": "palette",
-    //         "children": [
-    //          {"name": "ColorPalette", "weight": 6367},
-    //          {"name": "Palette", "weight": 1229},
-    //          {"name": "ShapePalette", "weight": 2059},
-    //          {"name": "SizePalette", "weight": 2291}
-    //         ]
-    //        },
-    //        {"name": "Property", "weight": 5559},
-    //        {"name": "Shapes", "weight": 19118},
-    //        {"name": "Sort", "weight": 6887},
-    //        {"name": "Stats", "weight": 6557},
-    //        {"name": "Strings", "weight": 22026}
-    //       ]
-    //      },
-    //      {
-    //       "name": "vis",
-    //       "children": [
-    //        {
-    //         "name": "axis",
-    //         "children": [
-    //          {"name": "Axes", "weight": 1302},
-    //          {"name": "Axis", "weight": 24593},
-    //          {"name": "AxisGridLine", "weight": 652},
-    //          {"name": "AxisLabel", "weight": 636},
-    //          {"name": "CartesianAxes", "weight": 6703}
-    //         ]
-    //        },
-    //        {
-    //         "name": "controls",
-    //         "children": [
-    //          {"name": "AnchorControl", "weight": 2138},
-    //          {"name": "ClickControl", "weight": 3824},
-    //          {"name": "Control", "weight": 1353},
-    //          {"name": "ControlList", "weight": 4665},
-    //          {"name": "DragControl", "weight": 2649},
-    //          {"name": "ExpandControl", "weight": 2832},
-    //          {"name": "HoverControl", "weight": 4896},
-    //          {"name": "IControl", "weight": 763},
-    //          {"name": "PanZoomControl", "weight": 5222},
-    //          {"name": "SelectionControl", "weight": 7862},
-    //          {"name": "TooltipControl", "weight": 8435}
-    //         ]
-    //        },
-    //        {
-    //         "name": "data",
-    //         "children": [
-    //          {"name": "Data", "weight": 20544},
-    //          {"name": "DataList", "weight": 19788},
-    //          {"name": "DataSprite", "weight": 10349},
-    //          {"name": "EdgeSprite", "weight": 3301},
-    //          {"name": "NodeSprite", "weight": 19382},
-    //          {
-    //           "name": "render",
-    //           "children": [
-    //            {"name": "ArrowType", "weight": 698},
-    //            {"name": "EdgeRenderer", "weight": 5569},
-    //            {"name": "IRenderer", "weight": 353},
-    //            {"name": "ShapeRenderer", "weight": 2247}
-    //           ]
-    //          },
-    //          {"name": "ScaleBinding", "weight": 11275},
-    //          {"name": "Tree", "weight": 7147},
-    //          {"name": "TreeBuilder", "weight": 9930}
-    //         ]
-    //        },
-    //        {
-    //         "name": "events",
-    //         "children": [
-    //          {"name": "DataEvent", "weight": 2313},
-    //          {"name": "SelectionEvent", "weight": 1880},
-    //          {"name": "TooltipEvent", "weight": 1701},
-    //          {"name": "VisualizationEvent", "weight": 1117}
-    //         ]
-    //        },
-    //        {
-    //         "name": "legend",
-    //         "children": [
-    //          {"name": "Legend", "weight": 20859},
-    //          {"name": "LegendItem", "weight": 4614},
-    //          {"name": "LegendRange", "weight": 10530}
-    //         ]
-    //        },
-    //        {
-    //         "name": "operator",
-    //         "children": [
-    //          {
-    //           "name": "distortion",
-    //           "children": [
-    //            {"name": "BifocalDistortion", "weight": 4461},
-    //            {"name": "Distortion", "weight": 6314},
-    //            {"name": "FisheyeDistortion", "weight": 3444}
-    //           ]
-    //          },
-    //          {
-    //           "name": "encoder",
-    //           "children": [
-    //            {"name": "ColorEncoder", "weight": 3179},
-    //            {"name": "Encoder", "weight": 4060},
-    //            {"name": "PropertyEncoder", "weight": 4138},
-    //            {"name": "ShapeEncoder", "weight": 1690},
-    //            {"name": "SizeEncoder", "weight": 1830}
-    //           ]
-    //          },
-    //          {
-    //           "name": "filter",
-    //           "children": [
-    //            {"name": "FisheyeTreeFilter", "weight": 5219},
-    //            {"name": "GraphDistanceFilter", "weight": 3165},
-    //            {"name": "VisibilityFilter", "weight": 3509}
-    //           ]
-    //          },
-    //          {"name": "IOperator", "weight": 1286},
-    //          {
-    //           "name": "label",
-    //           "children": [
-    //            {"name": "Labeler", "weight": 9956},
-    //            {"name": "RadialLabeler", "weight": 3899},
-    //            {"name": "StackedAreaLabeler", "weight": 3202}
-    //           ]
-    //          },
-    //          {
-    //           "name": "layout",
-    //           "children": [
-    //            {"name": "AxisLayout", "weight": 6725},
-    //            {"name": "BundledEdgeRouter", "weight": 3727},
-    //            {"name": "CircleLayout", "weight": 9317},
-    //            {"name": "CirclePackingLayout", "weight": 12003},
-    //            {"name": "DendrogramLayout", "weight": 4853},
-    //            {"name": "ForceDirectedLayout", "weight": 8411},
-    //            {"name": "IcicleTreeLayout", "weight": 4864},
-    //            {"name": "IndentedTreeLayout", "weight": 3174},
-    //            {"name": "Layout", "weight": 7881},
-    //            {"name": "NodeLinkTreeLayout", "weight": 12870},
-    //            {"name": "PieLayout", "weight": 2728},
-    //            {"name": "RadialTreeLayout", "weight": 12348},
-    //            {"name": "RandomLayout", "weight": 870},
-    //            {"name": "StackedAreaLayout", "weight": 9121},
-    //            {"name": "TreeMapLayout", "weight": 9191}
-    //           ]
-    //          },
-    //          {"name": "Operator", "weight": 2490},
-    //          {"name": "OperatorList", "weight": 5248},
-    //          {"name": "OperatorSequence", "weight": 4190},
-    //          {"name": "OperatorSwitch", "weight": 2581},
-    //          {"name": "SortOperator", "weight": 2023}
-    //         ]
-    //        },
-    //        {"name": "Visualization", "weight": 16540}
-    //       ]
-    //      }
-    //     ]
-    //    };
     var height = 600;
     var width = 800;
     var rootSVG = select('body')
@@ -5303,22 +5355,22 @@
         .style('background-color', '#F2F2F2');
     var treeGeneralProperties = {
         'orientation': TreeOrientation.vertical,
-        'defaultMaxDepth': 2,
+        'defaultMaxDepth': 5,
         'isClusterLayout': false,
         'containerHeight': height,
         'containerWidth': width,
-        'treeHeight': height,
-        'treeWidth': width,
-        'extraDepthWiseHeight': 0
+        // 'treeHeight': height,
+        // 'treeWidth': width,
+        'extraDepthinPx': 50
     };
     var treeNodeShapeProperties = {
-        'shapeType': TreeNodeShapeTypes.rect,
+        'shapeType': TreeNodeShapeTypes.circle,
         'radius': 10,
-        'width': 100,
+        'width': 50,
         'height': 30,
         'expandedNodeColor': 'red',
         'collapsedNodeColor': 'green',
-        'stroke': 'pink',
+        'stroke': 'black',
         'strokeWidth': 2,
         'animation': true
     };
@@ -5330,14 +5382,14 @@
     };
     var treeNodeTextProperties = {
         'fontFamily': 'Arial',
-        'fontSize': '20px',
+        'fontSize': '15px',
         'foregroundColor': 'black',
-        'showBackground': false,
+        'showBackground': true,
         'backgroundColor': 'pink',
-        'maxAllowedWidth': 100,
+        'maxAllowedWidth': 60,
         'textPadding': 5,
         'spaceBetweenNodeAndText': 10,
-        'showTextInsideShape': true
+        'showTextInsideShape': false
     };
     var treeProperties = {
         generalProperties: treeGeneralProperties,

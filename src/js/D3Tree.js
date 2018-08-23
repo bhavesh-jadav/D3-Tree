@@ -58,15 +58,15 @@ var D3Tree = /** @class */ (function () {
             .classed('treeGroup', true);
         // calculate node size i.e. acutal height and width for spacing purpose.
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-            this.nodeHeight = this.nodeWidth = 2 * nodeShapeProperties.radius;
+            this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.radius;
         }
         else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-            this.nodeHeight = nodeShapeProperties.height;
-            this.nodeWidth = nodeShapeProperties.width;
+            this.nodeShapeHeight = nodeShapeProperties.height;
+            this.nodeShapeWidth = nodeShapeProperties.width;
         }
         // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
         if (nodeTextProperties.showTextInsideShape) {
-            nodeTextProperties.maxAllowedWidth = this.nodeWidth;
+            nodeTextProperties.maxAllowedWidth = this.nodeShapeWidth;
         }
         // only add zoom when no fixed treeheight and treewidth is provided.
         if (generalProperties.treeHeight == undefined && generalProperties.treeWidth == undefined) {
@@ -91,13 +91,13 @@ var D3Tree = /** @class */ (function () {
         var generalProperties = this.treeProperties.generalProperties;
         var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
         var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
-        var nodeTextproperties = this.treeProperties.nodeTextProperties;
+        var nodeTextProperties = this.treeProperties.nodeTextProperties;
         // general properties
         if (generalProperties.isClusterLayout == undefined) {
             generalProperties.isClusterLayout = false;
         }
-        if (generalProperties.extraDepthWiseHeight == undefined) {
-            generalProperties.extraDepthWiseHeight = 0;
+        if (generalProperties.extraDepthinPx == undefined) {
+            generalProperties.extraDepthinPx = 0;
         }
         // node shape properties
         if (nodeShapeProperties.animationDuration == undefined) {
@@ -108,32 +108,35 @@ var D3Tree = /** @class */ (function () {
             nodeLinkProperties.animationDuration = 1000;
         }
         // node text properties
-        if (nodeTextproperties.backgroundColor == undefined) {
-            nodeTextproperties.backgroundColor = '#F2F2F2';
+        if (nodeTextProperties.backgroundColor == undefined) {
+            nodeTextProperties.backgroundColor = '#F2F2F2';
         }
-        if (nodeTextproperties.fontWeight == undefined) {
-            nodeTextproperties.fontWeight = 'normal';
+        if (nodeTextProperties.fontWeight == undefined) {
+            nodeTextProperties.fontWeight = 'normal';
         }
-        if (nodeTextproperties.fontStyle == undefined) {
-            nodeTextproperties.fontStyle = 'normal';
+        if (nodeTextProperties.fontStyle == undefined) {
+            nodeTextProperties.fontStyle = 'normal';
         }
-        if (nodeTextproperties.spaceBetweenNodeAndText == undefined) {
-            nodeTextproperties.spaceBetweenNodeAndText = 5;
+        if (nodeTextProperties.spaceBetweenNodeAndText == undefined) {
+            nodeTextProperties.spaceBetweenNodeAndText = 5;
         }
-        if (nodeTextproperties.maxAllowedWidth == undefined) {
-            nodeTextproperties.maxAllowedWidth = 50;
+        if (nodeTextProperties.maxAllowedWidth == undefined) {
+            nodeTextProperties.maxAllowedWidth = 50;
         }
-        if (nodeTextproperties.textPadding == undefined) {
-            if (nodeTextproperties.showBackground) {
-                nodeTextproperties.textPadding = 4;
+        if (nodeTextProperties.showTextInsideShape == undefined) {
+            nodeTextProperties.showTextInsideShape = false;
+        }
+        if (nodeTextProperties.textPadding == undefined || !nodeTextProperties.showBackground) {
+            if (nodeTextProperties.showBackground || nodeTextProperties.showTextInsideShape) {
+                nodeTextProperties.textPadding = 4;
             }
             else {
-                nodeTextproperties.textPadding = 0;
+                nodeTextProperties.textPadding = 0;
             }
         }
     };
     /**
-     * Creates D3 tree data based on json data provided in constructor
+     * Creates D3 tree data based on json tree data provided in constructor
      */
     D3Tree.prototype._createTreeData = function () {
         var _this = this;
@@ -151,35 +154,47 @@ var D3Tree = /** @class */ (function () {
         };
         if (this.dynamicHeightAndWidth) {
             // Find longest text width present in tree to calculate proper spacing between nodes.
-            var maxTextWidth_1 = 0;
-            var findMaxLabelLength_1 = function (level, node) {
-                var textWidth = MeasureTextSize(textProperties, node.data.name).width;
-                if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
-                    node.children.forEach(function (element) {
-                        findMaxLabelLength_1(level + 1, element);
-                    });
+            if (nodeTextProperties.showTextInsideShape) {
+                treeWidth = (this.nodeShapeWidth + generalProperties.extraDepthinPx) * (this.maxExpandedDepth + 1);
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth;
                 }
-                maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
-            };
-            findMaxLabelLength_1(0, this.hierarchyData);
-            var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height +
-                (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-            // if node shape size is greater than text height than use that for treeHeight calculation
-            var perNodeHeight = textHeight > this.nodeHeight ? textHeight : this.nodeHeight;
-            var maxPerNodeTextWidth = nodeTextProperties.maxAllowedWidth + (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-            treeWidth = (maxTextWidth_1 + generalProperties.extraDepthWiseHeight) * (this.maxExpandedDepth + 1);
-            if (generalProperties.orientation == TreeOrientation.horizontal) {
-                treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
+                else {
+                    treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth * 1.3;
+                }
             }
             else {
-                treeHeight = this.hierarchyData.leaves().length * maxPerNodeTextWidth;
+                var maxTextWidth_1 = 0;
+                var findMaxTextLength_1 = function (level, node) {
+                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                    if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
+                        node.children.forEach(function (element) {
+                            findMaxTextLength_1(level + 1, element);
+                        });
+                    }
+                    maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
+                };
+                findMaxTextLength_1(0, this.hierarchyData);
+                var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
+                // if node shape size is greater than text height than use that for treeHeight calculation
+                var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight;
+                var perNodeWidth = 0;
+                perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
+                treeWidth = (maxTextWidth_1 + generalProperties.extraDepthinPx) * (this.maxExpandedDepth + 1);
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
+                }
+                else {
+                    treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
+                }
             }
             // adding zoom to tree.
-            var minZoomScale = Math.min(generalProperties.containerHeight / generalProperties.treeHeight, generalProperties.containerWidth / generalProperties.treeWidth);
+            var minZoomScale = Math.min(generalProperties.containerHeight / treeHeight, generalProperties.containerWidth / treeWidth);
             minZoomScale = minZoomScale - (minZoomScale * 0.05);
             // zoom will chnage transform of group element which is child of root SVG and parent of tree
             var treeGroupZoomAction = function () {
                 _this.treeGroup.attr('transform', event.transform);
+                // this.treeGroup.style('cursor', 'pointer');
             };
             // settings max translate extent for zooming
             // let maxTranslateX = generalProperties.containerWidth - (generalProperties.treeWidth * minZoomScale);
@@ -195,21 +210,56 @@ var D3Tree = /** @class */ (function () {
             this.rootSVG.call(this.rootSVGZoomListner);
         }
         else {
-            // to set right margin
-            var maxLeaveNodesTextWidth_1 = 0;
-            var rootNodeTextWidth = MeasureTextSize(textProperties, this.hierarchyData.data.name).width +
-                nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeWidth / 2;
-            this.hierarchyData.leaves().forEach(function (node) {
-                var textWidth = MeasureTextSize(textProperties, node.data.name).width;
-                maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
-            });
-            maxLeaveNodesTextWidth_1 += nodeTextProperties.textPadding;
-            treeHeight = generalProperties.treeHeight;
-            treeWidth = generalProperties.treeWidth - (rootNodeTextWidth + maxLeaveNodesTextWidth_1 + nodeTextProperties.spaceBetweenNodeAndText);
-            console.log(treeWidth);
-            this.treeGroup.transition()
-                .duration(1000)
-                .attr('transform', Translate(rootNodeTextWidth, 0));
+            // to set right margin for fixed height and width tree, we do following calculations.
+            var fixedMargin = 10;
+            var rootNodeTextSize = MeasureTextSize(textProperties, this.hierarchyData.data.name);
+            if (generalProperties.orientation == TreeOrientation.horizontal) {
+                var maxLeaveNodesTextWidth_1 = 0;
+                var rootNodeWidth = 0;
+                var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
+                if (nodeTextProperties.showTextInsideShape) {
+                    rootNodeWidth = this.nodeShapeWidth / 2;
+                }
+                else {
+                    rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
+                }
+                this.hierarchyData.leaves().forEach(function (node) {
+                    var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                    maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
+                });
+                if (nodeTextProperties.showTextInsideShape) {
+                    treeWidth = generalProperties.treeWidth - this.nodeShapeWidth;
+                }
+                else {
+                    treeWidth = generalProperties.treeWidth - (rootNodeWidth + maxLeaveNodesTextWidth_1 + fixedNodeWidth);
+                }
+                treeWidth -= fixedMargin * 2;
+                treeHeight = generalProperties.treeHeight - fixedMargin * 2;
+                this.treeGroup.transition()
+                    .duration(1000)
+                    .attr('transform', Translate(rootNodeWidth + fixedMargin, fixedMargin));
+            }
+            else {
+                var nodeHeight = 0;
+                var fixedNodeHeight = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
+                if (nodeTextProperties.showTextInsideShape) {
+                    nodeHeight = this.nodeShapeHeight / 2;
+                }
+                else {
+                    nodeHeight = rootNodeTextSize.height + fixedNodeHeight;
+                }
+                if (nodeTextProperties.showTextInsideShape) {
+                    treeWidth = generalProperties.treeHeight - this.nodeShapeHeight;
+                }
+                else {
+                    treeWidth = generalProperties.treeHeight - nodeHeight * 2;
+                }
+                treeHeight = generalProperties.treeWidth - fixedMargin * 2;
+                treeWidth -= fixedMargin * 2;
+                this.treeGroup.transition()
+                    .duration(1000)
+                    .attr('transform', Translate(fixedMargin, fixedMargin + nodeHeight));
+            }
         }
         if (generalProperties.isClusterLayout) {
             this.tree = cluster().size([treeHeight, treeWidth]);
@@ -248,7 +298,6 @@ var D3Tree = /** @class */ (function () {
     };
     D3Tree.prototype._createNodes = function () {
         var _this = this;
-        var generalProperties = this.treeProperties.generalProperties;
         var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
         var click = function (node) {
             if (node.children) { // collapse
@@ -288,7 +337,12 @@ var D3Tree = /** @class */ (function () {
         this.nodesEnter.attr('fill', function (node) {
             return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
         })
-            .on('click', click);
+            .on('click', click)
+            .on('mouseover', function (node, i, elements) {
+            if (node.children) {
+                select(elements[i]).style('cursor', 'pointer');
+            }
+        });
         this.nodesEnter.append('title')
             .text(function (node) {
             return node.data.name;
@@ -342,13 +396,13 @@ var D3Tree = /** @class */ (function () {
             fontStyle: nodeTextProperties.fontStyle,
             fontWeight: nodeTextProperties.fontWeight
         };
-        var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+        var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
         var adjustXValue = function (node) {
             if (node.children) {
-                return -_this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText;
+                return -_this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText;
             }
             else {
-                return _this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText;
+                return _this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText;
             }
         };
         var nodeTextEnter = this.nodesEnter
@@ -356,7 +410,7 @@ var D3Tree = /** @class */ (function () {
             .classed('nodeText', true)
             .each(function (node, i, elements) {
             var nodeTextGroup = select(elements[i]);
-            nodeTextGroup.append('text')
+            var nodeText = nodeTextGroup.append('text')
                 .attr('fill', nodeTextProperties.foregroundColor)
                 .style('dominant-baseline', 'middle')
                 .style('font-size', nodeTextProperties.fontSize)
@@ -369,54 +423,36 @@ var D3Tree = /** @class */ (function () {
                 //     return textAnchor;
                 // })
                 .text(function (node) {
-                if (nodeTextProperties.showTextInsideShape) {
-                    textProperties.text = node.data.name;
-                    return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-                }
-                else {
-                    return node.data.name;
-                }
+                textProperties.text = node.data.name;
+                return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
             });
             nodeTextGroup.append('title')
                 .text(function (node) {
                 return node.data.name;
             });
-            var svgRect = nodeTextGroup.select('text').node().getBBox();
-            if (nodeTextProperties.showBackground) {
-                nodeTextGroup.insert('rect', 'text')
-                    .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-                    .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-                    .attr('height', svgRect.height + nodeTextProperties.textPadding)
-                    .attr('width', svgRect.width + nodeTextProperties.textPadding)
-                    .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-            }
-            if (generalProperties.orientation == TreeOrientation.horizontal) {
-                if (nodeTextProperties.showTextInsideShape) {
-                    nodeTextGroup.style('text-anchor', 'middle');
-                    nodeTextGroup.attr('transform', function (node) {
-                        return Translate(_this.nodeHeight / 2, 0);
-                    });
-                }
-                else {
-                    nodeTextGroup.attr('transform', function (node) {
-                        if (node.children) {
-                            return Translate(-(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText), 0);
-                        }
-                        else {
-                            return Translate(nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText, 0);
-                        }
-                    });
-                }
+            var svgRect = nodeText.node().getBBox();
+            if (nodeTextProperties.showTextInsideShape) {
+                nodeText.style('text-anchor', 'middle');
+                nodeTextGroup.attr('transform', Translate(0, 0));
             }
             else {
-                if (nodeTextProperties.showTextInsideShape) {
-                    nodeTextGroup.style('text-anchor', 'middle');
-                    nodeTextGroup.attr('transform', Translate(0, 0));
+                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                    nodeTextGroup.attr('transform', function (node) {
+                        var x = 0;
+                        var y = 0;
+                        if (node.children) {
+                            x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2);
+                        }
+                        else {
+                            x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2;
+                        }
+                        return Translate(x, y);
+                    });
                 }
                 else {
                     nodeTextGroup.attr('transform', function (node) {
                         var x = svgRect.width / 2;
-                        var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText;
+                        var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
                         if (node.children) {
                             return Translate(-x, -y);
                         }
@@ -425,6 +461,14 @@ var D3Tree = /** @class */ (function () {
                         }
                     });
                 }
+            }
+            if (nodeTextProperties.showBackground && !nodeTextProperties.showTextInsideShape) {
+                nodeTextGroup.insert('rect', 'text')
+                    .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
+                    .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
+                    .attr('height', svgRect.height + nodeTextProperties.textPadding)
+                    .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                    .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
             }
             // select(elements[i]).attr('transform', Translate(10, 0));
             // console.log(elements[i]);
@@ -519,10 +563,10 @@ var D3Tree = /** @class */ (function () {
             var totalSpacing = 0;
             var backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2 : 0;
             if (node.children) {
-                totalSpacing = -_this.nodeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+                totalSpacing = -_this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
             }
             else {
-                totalSpacing = _this.nodeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+                totalSpacing = _this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
             }
             return totalSpacing;
         })
@@ -582,16 +626,22 @@ var D3Tree = /** @class */ (function () {
             return "M" + source.x + "," + source.y +
                 "L" + target.x + "," + target.y;
         };
-        var nodePerpendicularLineLength = this.nodeHeight * 2 + generalProperties.extraDepthWiseHeight * 0.3;
+        var nodePerpendicularLineLength = 0;
+        if (generalProperties.orientation == TreeOrientation.horizontal) {
+            nodePerpendicularLineLength = this.nodeShapeWidth + generalProperties.extraDepthinPx * 0.3;
+        }
+        else {
+            nodePerpendicularLineLength = this.nodeShapeHeight + generalProperties.extraDepthinPx * 0.3;
+        }
         var horizontalCornerLink = function (source, target) {
             return "M" + source.x + "," + source.y +
-                "H" + (source.x + nodePerpendicularLineLength) + // TODO: change +15
+                "H" + (source.x + nodePerpendicularLineLength) +
                 "V" + target.y +
                 "H" + target.x;
         };
         var verticalCornerLink = function (source, target) {
             return "M" + source.x + "," + source.y +
-                "V" + (source.y + nodePerpendicularLineLength) + // TODO: change +15
+                "V" + (source.y + nodePerpendicularLineLength) +
                 "H" + target.x +
                 "V" + target.y;
         };

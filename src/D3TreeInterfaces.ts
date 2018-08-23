@@ -53,7 +53,7 @@ export interface TreeGeneralProperties {
     treeHeight?: number,
     treeWidth?: number,
     isClusterLayout?: boolean,
-    extraDepthWiseHeight?: number
+    extraDepthinPx?: number
 }
 
 export interface TreeNodeShapeProperties {
@@ -88,7 +88,14 @@ export interface TreeNodeTextProperties {
     maxAllowedWidth?: number,
     spaceBetweenNodeAndText?: number
     /**
-     * Use textPadding when showBackground is true. It will set padding between text and background in px.
+     * Use textPadding when showBackground is true. It will set padding between text and it's background in px.
+     * 
+     * Defalut Values:
+     * 
+     * `showBackground` : `false` then 0.
+     * 
+     * `showBackground` : `true` and no `textPadding` is specified than 4.
+     * 
      */
     textPadding?: number,
     /**
