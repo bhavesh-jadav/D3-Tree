@@ -6,23 +6,14 @@ import { HierarchyPointNode, HierarchyNode } from 'd3-hierarchy';
 /**
  * Extension of `HierarchyPointNode` from `D3` with extra properties.
  */
-export interface TreePointNode<Datum> extends HierarchyPointNode<Datum> {
+export interface TreePointNode<Datum> extends HierarchyPointNode<Datum>, OptionalTreeData {
     /**
-     * It is used to stores collpased nodes.
+     * Stores collpased nodes.
      */
     _children?: HierarchyNode<Datum>[] | null;
-    /**
-     * Will be used to show image on the node and expand and collpase color will be applied
-     * on stroke of the image if only image is visible on node.
-     */
-    imageURL?: string | null;
-    /**
-     * Will be used to add URL to the text.
-     */
-    externalURL?: string | null;
 }
 
-export interface TreeData {
+export interface TreeData extends OptionalTreeData {
     /**
      * Name of the node.
      */
@@ -31,8 +22,13 @@ export interface TreeData {
      * Optional children of the node.
      */
     children?: TreeData[] | null;
+    
+}
+
+export interface OptionalTreeData {
     /**
-     * Optional image url that will be used to display image on nodes.
+     * Show image on the node and expand and collpase color will be applied
+     * on stroke of the image if only image is visible on node.
      */
     imageURL?: string | null;
     /**
@@ -40,20 +36,33 @@ export interface TreeData {
      */
     externalURL?: string | null;
     /**
-     * Weigt of the node. Can be used to sort the nodes.
+     * Weight of the node. Can be used to sort the nodes.
      */
     weight?: number | null;
 }
 
 export interface TreeGeneralProperties {
+    /**
+     * Either vertical or horizontal orientation.
+     */
     orientation: TreeOrientation,
     defaultMaxDepth: number,
     containerHeight: number,
     containerWidth: number,
-    treeHeight?: number,
-    treeWidth?: number,
+    enableZoom: boolean,
+    /**
+     * If `enableZoom` is true then use this property to specify MINIMUM ZOOM that is allowed on tree.
+     * To find possible for value for your tree, expand all your node in tree by setting `defaultMaxDepth`
+     * in `TreeGeneralProperties` and lower this value until full tree is visible.
+     */
+    minZoomScale?: number,
+    /**
+     * If `enableZoom` is true then use this property to specify MAXZIMUM ZOOM that is allowed on tree.
+     */
+    maxZoomScale?: number,
     isClusterLayout?: boolean,
-    extraDepthinPx?: number
+    extraPerLevelDepthInPx?: number,
+    extraSpaceBetweenNodesInPx?: number
 }
 
 export interface TreeNodeShapeProperties {
