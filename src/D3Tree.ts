@@ -1,7 +1,8 @@
 import { 
-    TreeGeneralProperties, TreeNodeLinkProperties, TreeNodeTextProperties,
+    TreeGeneralProperties, TreeLinkProperties, TreeNodeTextProperties,
     TreeProperties, TreeNodeShapeProperties, TreeNodeShapeTypes,
-    TreeOrientation, TreeNodeLinkTypes, TreePointNode, TreeData
+    TreeOrientation, TreeNodeLinkTypes, TreePointNode, TreeData,
+    TreeNodeProperties, TreeNodeImageProperties
 } from './D3TreeInterfaces';
 import { 
     tree, hierarchy, TreeLayout, cluster,
@@ -56,8 +57,8 @@ export class D3Tree {
     CreateTree() {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
+        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
 
         // set maxExpandedDepth to defaultMaxDepth
         this.maxExpandedDepth = generalProperties.defaultMaxDepth;
@@ -87,10 +88,10 @@ export class D3Tree {
 
         // calculate node size i.e. acutal height and width for spacing purpose.
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-            this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.radius;
+            this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.circleRadius;
         } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-            this.nodeShapeHeight = nodeShapeProperties.height;
-            this.nodeShapeWidth = nodeShapeProperties.width;
+            this.nodeShapeHeight = nodeShapeProperties.rectHeight;
+            this.nodeShapeWidth = nodeShapeProperties.rectWidth;
         }
 
         // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
@@ -101,7 +102,7 @@ export class D3Tree {
         // only add zoom when no fixed treeheight and treewidth is provided.
         if (generalProperties.enableZoom) {
             this.dynamicHeightAndWidth = true;
-            this.rootSVG.style('cursor', 'grab')
+            // this.rootSVG.style('cursor', 'grab')
         }
 
         this._updateTree(); // update the tree if already created or make a new tree.
@@ -123,9 +124,11 @@ export class D3Tree {
 
     private _setDefaultValuesForTreeProperties() {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        let nodeLinkProperties: TreeNodeLinkProperties = this.treeProperties.nodeLinkProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        let nodeProperties: TreeNodeProperties = this.treeProperties.nodeProperties;
+        let nodeShapeProperties: TreeNodeShapeProperties = nodeProperties.shapeProperties;
+        let nodeTextProperties: TreeNodeTextProperties = nodeProperties.textProperties;
+        let nodeImageProperties: TreeNodeImageProperties = nodeProperties.imageProperties;
+        let treeLinkProperties: TreeLinkProperties = this.treeProperties.linkProperties;
 
         // general properties
         if (generalProperties.isClusterLayout == undefined) {
@@ -144,14 +147,14 @@ export class D3Tree {
             generalProperties.extraSpaceBetweenNodesInPx = 0;
         }
 
-        // node shape properties
-        if (nodeShapeProperties.animationDuration == undefined) {
-            nodeShapeProperties.animationDuration = 1000;
+        // node properties
+        if (nodeProperties.animationDuration == undefined) {
+            nodeProperties.animationDuration = 1000;
         }
 
-        // node link properties
-        if (nodeLinkProperties.animationDuration == undefined) {
-            nodeLinkProperties.animationDuration = 1000;
+        // node shape properties
+        if (nodeShapeProperties.takeColorsFromData == undefined) {
+            nodeShapeProperties.takeColorsFromData = false;
         }
 
         // node text properties
@@ -180,6 +183,34 @@ export class D3Tree {
                 nodeTextProperties.textPadding = 0;
             }
         }
+        if (nodeTextProperties.takeColorsFromData == undefined) {
+            nodeTextProperties.takeColorsFromData = false;
+        }
+
+        // node image properties
+        if (nodeImageProperties.padding == undefined) {
+            nodeImageProperties.padding = 5;
+        }
+        if (nodeImageProperties.defaultImageURL == undefined) {
+            nodeImageProperties.defaultImageURL = 'https://i.stack.imgur.com/KIqMD.png';
+        }
+        if (nodeImageProperties.height == undefined || nodeImageProperties.width == undefined) {
+            nodeImageProperties.height = nodeImageProperties.width = 30 - nodeImageProperties.padding * 2;
+        }
+        if (nodeImageProperties.strokeColor == undefined) {
+            nodeImageProperties.strokeColor = 'none'
+        }
+        if (nodeImageProperties.strokeWidth == undefined) {
+            nodeImageProperties.strokeWidth = 0;
+        }
+
+        // node link properties
+        if (treeLinkProperties.animationDuration == undefined) {
+            treeLinkProperties.animationDuration = 1000;
+        }
+        if (treeLinkProperties.takeColorsFromData == undefined) {
+            treeLinkProperties.takeColorsFromData = false;
+        }
     }
 
     /**
@@ -188,7 +219,7 @@ export class D3Tree {
     private _createTreeData() {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
 
         // if dynaimicHeightSndWidth is true,s that means no treeheight or treewidth is provided
         // than we calculate it according to the tree data.
@@ -239,22 +270,21 @@ export class D3Tree {
             }
 
             // zoom will chnage transform of group element which is child of root SVG and parent of tree
-            let treeGroupZoomAction = () => {
-                 
+            let treeGroupZoomAction = () => {      
                 this.treeGroup.attr('transform', event.transform);
                 // this.rootSVG.style('cursor', 'grab');
             }
 
             // listner will be attached to root SVG.
             this.rootSVGZoomListner = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
-                .on('start', () => {
-                    console.log('start');
-                    this.rootSVG.style('cursor', 'grabbing');
-                })
-                .on('end', () => {
-                    console.log('end');
-                    this.rootSVG.style('cursor', 'grab');
-                })
+                // .on('start', () => {
+                //     console.log('start');
+                //     this.rootSVG.style('cursor', 'grabbing');
+                // })
+                // .on('end', () => {
+                //     console.log('end');
+                //     this.rootSVG.style('cursor', 'grab');
+                // })
                 .on('zoom', treeGroupZoomAction)
                 .filter(() => {
                     return (
@@ -265,7 +295,7 @@ export class D3Tree {
             
             this.rootSVG.call(this.rootSVGZoomListner)
             .on('dblclick.zoom', () => {
-                // center to root node on double click
+                // center to root node on double click.
                 this._centerNode(this.treeNodes); 
             })
             .on('ondragstart', () => {
@@ -352,6 +382,10 @@ export class D3Tree {
      * Updates nodes selection with latest data and adds new node groups into DOM.
      */
     private _createNodeGroups() {
+
+        let nodeProperties: TreeNodeProperties = this.treeProperties.nodeProperties;
+        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
+
         this.nodes = this.treeGroup.selectAll('g.node')
             .data(this.treeNodeArray, (node: any) => {
                 return (node.id || (node.id = ++this.nodeUID));
@@ -363,10 +397,53 @@ export class D3Tree {
             .attr('transform', (node: TreePointNode<any>) => {
                 return Translate(node.x, node.y);
             });
+
+        // animation will be applicable for whole node i.e. shape, text, image etc.
+        if (nodeProperties.animation) {
+            this.nodesEnter.attr('opacity', 0)
+                .transition()
+                .duration(nodeProperties.animationDuration)
+                // .ease(d3_ease.easeCubicOut)
+                .attr('opacity', 1);
+
+            this.nodes.transition()
+                .duration(nodeProperties.animationDuration)
+                .attr('transform', (node: TreePointNode<any>) => {
+                    return Translate(node.x, node.y);
+                });
+
+            this.nodes.select('.node-shape')
+            .transition()
+            .duration(nodeProperties.animationDuration)
+            .attr('fill', (node: TreePointNode<any>) => {
+                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                });
+
+            this.nodes.exit()
+                .attr('opacity', 1)
+                .transition()
+                .duration(nodeProperties.animationDuration)
+                // .ease(d3_ease.easeCubicOut)
+                .attr('opacity', 0)
+                .remove();
+        } else {
+            this.nodesEnter.attr('opacity', 1);
+
+            this.nodes.attr('transform', (node: TreePointNode<any>) => {
+                    return Translate(node.x, node.y);
+                });
+
+            this.nodes.select('.node-shape')
+                .attr('fill', (node: TreePointNode<any>) => {
+                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                });
+
+            this.nodes.exit().remove();
+        }
     }
 
     private _createNodeShapes() {
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
         let click = (node: any) => {
             if (node.children) { // collapse
                 node._children = node.children;
@@ -385,69 +462,69 @@ export class D3Tree {
             }
         }
 
+        let nodeShape;
         if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-            this.nodesEnter.append('circle')
-                .attr('r', nodeShapeProperties.radius)
-                .attr('stroke', nodeShapeProperties.stroke)
-                .attr('stroke-width', nodeShapeProperties.strokeWidth);
+            nodeShape = this.nodesEnter.append('circle')
+                .attr('r', nodeShapeProperties.circleRadius)
         } else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-            let squareTransformX = 0 - nodeShapeProperties.width / 2;
-            let squareTransformY = 0 - nodeShapeProperties.height / 2;
-            this.nodesEnter.append('rect')
-                .attr('x', squareTransformX)
-                .attr('y', squareTransformY)
-                .attr('height', nodeShapeProperties.height)
-                .attr('width', nodeShapeProperties.width)
-                .attr('stroke', nodeShapeProperties.stroke)
-                .attr('stroke-width', nodeShapeProperties.strokeWidth);
+            nodeShape = this.nodesEnter.append('rect')
+                .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
+                .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
+                .attr('height', nodeShapeProperties.rectHeight)
+                .attr('width', nodeShapeProperties.rectWidth)
         }
 
-        this.nodesEnter.attr('fill', (node: TreePointNode<any>) => {
+        nodeShape.classed('node-shape', true)
+            .attr('fill', (node: TreePointNode<any>) => {
                 return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
             })
-            .on('click', click)
+            .attr('stroke', nodeShapeProperties.strokeColor)
+            .attr('stroke-width', nodeShapeProperties.strokeWidth);
+
+        this.nodesEnter.on('click', click)
             .on('mouseover', (node: TreePointNode<any>, i: number, elements: Element[]) => {
                 if (node.children || node._children) {
                     select(elements[i]).style('cursor', 'pointer')  ;
                 }
             });
+
+        if (this.treeProperties.nodeProperties.imageProperties.showImage) {
+            this._createImage();
+        }
+
         this.nodesEnter.append('title')
             .text((node: TreePointNode<any>) => {
                 return node.data.name;
             });
-    
-        if (nodeShapeProperties.animation) {
-            this.nodesEnter.attr('opacity', 0)
-                .transition()
-                .duration(nodeShapeProperties.animationDuration)
-                .ease(d3_ease.easeCubicOut)
-                .attr('opacity', 1);
+    }
 
-            this.nodes.transition()
-                .duration(nodeShapeProperties.animationDuration)
-                .attr('transform', (node: TreePointNode<any>) => {
-                    return Translate(node.x, node.y);
-                })
-                .attr('fill', (node: any) => {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
-                });
+    private _createImage() {
+        let nodeImageProperties: TreeNodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
+        let nodeImageEnter = this.nodesEnter.append('g')
+            .classed('node-image', true);
 
-            this.nodes.exit()
-                .attr('opacity', 1)
-                .transition()
-                .duration(nodeShapeProperties.animationDuration)
-                .ease(d3_ease.easeCubicOut)
-                .attr('opacity', 0)
-                .remove();
-        } else {
-            this.nodesEnter.attr('opacity', 1);
+        nodeImageEnter.append('circle')
+            .attr('r', () => {
+                return nodeImageProperties.height / 2;
+            })
+            .attr('fill', 'none')
+            .attr('stroke', nodeImageProperties.strokeColor)
+            .attr('stroke-width', nodeImageProperties.strokeWidth)
+            .attr('cx', -this.nodeShapeWidth / 2 + nodeImageProperties.padding + nodeImageProperties.width / 2)
+            .attr('cy', 0);
 
-            this.nodes.attr('transform', (node: TreePointNode<any>) => {
-                    return Translate(node.x, node.y);
-                });
-
-            this.nodes.exit().remove();
-        }
+        nodeImageEnter.append('image')
+            .attr('xlink:href', (node: TreePointNode<any>) => {
+                if (node.imageURL) {
+                    return node.imageURL;
+                } else {
+                    return nodeImageProperties.defaultImageURL;
+                }
+            })
+            .attr('width', nodeImageProperties.width)
+            .attr('height', nodeImageProperties.height)
+            .attr('x', -this.nodeShapeWidth / 2 + nodeImageProperties.padding)
+            .attr('y', -nodeImageProperties.height / 2)
     }
 
     // http://bl.ocks.org/robschmuecker/7880033
@@ -463,7 +540,9 @@ export class D3Tree {
     private _createNodeText() {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
+        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
+        let nodeImageProperties: TreeNodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
         let textProperties: TextProperties = {
             fontFamily: nodeTextProperties.fontFamily,
             fontSize: nodeTextProperties.fontSize,
@@ -513,13 +592,23 @@ export class D3Tree {
                 let svgRect: SVGRect = (nodeText.node() as any).getBBox();
 
                 if (nodeTextProperties.showTextInsideShape) {
-                    nodeText.style('text-anchor', 'middle');
-                    nodeTextGroup.attr('transform', Translate(0, 0));
+                    if (nodeImageProperties.showImage) {
+                        let x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.padding * 2;
+                        nodeText.style('text-anchor', 'start');
+                        nodeTextGroup.attr('transform', Translate(x, 0));
+                        nodeText.text((node: TreePointNode<any>) => {
+                            textProperties.text = node.data.name;
+                            return GetTailoredTextOrDefault(textProperties, this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.padding * 2);
+                        });
+                    } else {
+                        nodeText.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', Translate(0, 0));
+                    }
                 } else {
                     if (generalProperties.orientation == TreeOrientation.horizontal) {
                         nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
                             let x: number = 0;
-                            let y: number = 0
+                            let y: number = 0;
                             if (node.children) {
                                 x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2);
                             } else {
@@ -589,8 +678,8 @@ export class D3Tree {
 
     private _createNodeTextForHorizontalTree(nodeTextEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>) {
 
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+        // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
 
 
         // nodeTextEnter.selectAll('text')
@@ -650,31 +739,31 @@ export class D3Tree {
 
     private _createNodeTextForVerticalTree(nodeTextEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>) {
 
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+        // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+        // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
 
-        let textProperties: TextProperties = {
-            'fontFamily': nodeTextProperties.fontFamily,
-            'fontSize': nodeTextProperties.fontSize
-        };
+        // let textProperties: TextProperties = {
+        //     'fontFamily': nodeTextProperties.fontFamily,
+        //     'fontSize': nodeTextProperties.fontSize
+        // };
         
-        let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-        nodeTextEnter.selectAll('text')
-            .attr('y', (node: TreePointNode<any>) => {
-                let totalSpacing = 0;
-                let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
-                if (node.children) {
-                    totalSpacing = -this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
-                } else {
-                    totalSpacing = this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
-                }
-                return totalSpacing;
-            })
-            .style('text-anchor', 'middle')
-            .text((node: TreePointNode<any>) => {
-                textProperties.text = node.data.name;
-                return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-            });
+        // let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+        // nodeTextEnter.selectAll('text')
+        //     .attr('y', (node: TreePointNode<any>) => {
+        //         let totalSpacing = 0;
+        //         let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
+        //         if (node.children) {
+        //             totalSpacing = -this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+        //         } else {
+        //             totalSpacing = this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+        //         }
+        //         return totalSpacing;
+        //     })
+        //     .style('text-anchor', 'middle')
+        //     .text((node: TreePointNode<any>) => {
+        //         textProperties.text = node.data.name;
+        //         return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+        //     });
 
         // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
         // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
@@ -721,9 +810,9 @@ export class D3Tree {
 
     private _createNodeLinks() {
 
-        let nodeLinkProperties: TreeNodeLinkProperties = this.treeProperties.nodeLinkProperties;
+        let treeLinkProperties: TreeLinkProperties = this.treeProperties.linkProperties;
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeAnimationDuration: number = this.treeProperties.nodeShapeProperties.animationDuration;
+        let nodeAnimationDuration: number = this.treeProperties.nodeProperties.animationDuration;
 
         let horizontalCurveLink = linkHorizontal()
             .x((node: any) => { return node.x; })
@@ -757,15 +846,15 @@ export class D3Tree {
         }
 
         let createPath = (nodeLink: HierarchyPointLink<any>) => {
-            if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
+            if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
                 if (generalProperties.orientation == TreeOrientation.horizontal) {
                     return horizontalCurveLink(nodeLink as any);
                 } else {
                     return verticalCurveLink(nodeLink as any);
                 }
-            } else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
+            } else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
                 return straightLink(nodeLink.source, nodeLink.target);
-            } else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
+            } else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
                 if (generalProperties.orientation == TreeOrientation.horizontal) {
                     return horizontalCornerLink(nodeLink.source, nodeLink.target);
                 } else {
@@ -783,8 +872,8 @@ export class D3Tree {
             .insert("path", "g")   //will insert path before g elements
             .classed('link', true)
             .attr('fill', 'none')
-            .attr('stroke', nodeLinkProperties.stroke)
-            .attr('stroke-width', nodeLinkProperties.strokeWidth)
+            .attr('stroke', treeLinkProperties.strokeColor)
+            .attr('stroke-width', treeLinkProperties.strokeWidth)
             .attr('d', createPath);
 
         nodeLinksEnter.append('title')
@@ -793,7 +882,7 @@ export class D3Tree {
             });
 
 
-        if (nodeLinkProperties.animation) {
+        if (treeLinkProperties.animation) {
             nodeLinksEnter.each((nodeLink: HierarchyPointLink<any>, i: number, elements: Element[]) => {
                 let linkLength = (elements[i] as any).getTotalLength();
                 select(elements[i])
@@ -801,7 +890,7 @@ export class D3Tree {
                     .attr("stroke-dashoffset", linkLength)
                     .transition()
                     .delay(nodeAnimationDuration - (nodeAnimationDuration / 3))
-                    .duration(nodeLinkProperties.animationDuration)
+                    .duration(treeLinkProperties.animationDuration)
                     // .ease(d3_ease.easeCubicIn)
                     .attr("stroke-dashoffset", 0);
             });
@@ -809,7 +898,7 @@ export class D3Tree {
             nodeLinks.attr('stroke-dasharray', '')
                 .attr("stroke-dashoffset", 0)
                 .transition()
-                .duration(nodeLinkProperties.animationDuration)
+                .duration(treeLinkProperties.animationDuration)
                 .attr('d', createPath);
 
             nodeLinks.exit()
@@ -820,7 +909,7 @@ export class D3Tree {
                         .attr("stroke-dashoffset", 0)
                         .attr('opacity', 1)
                         .transition()
-                        .duration(nodeLinkProperties.animationDuration)
+                        .duration(treeLinkProperties.animationDuration)
                         // .ease(d3_ease.easeCubicIn)
                         .attr("stroke-dashoffset", linkLength)
                         .attr('opacity', 0)

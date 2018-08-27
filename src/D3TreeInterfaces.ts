@@ -39,6 +39,14 @@ export interface OptionalTreeData {
      * Weight of the node. Can be used to sort the nodes.
      */
     weight?: number | null;
+    /**
+     * Node Color.
+     */
+    nodeColor?: string | null;
+    /**
+     * Node text color.
+     */
+    nodeTextColor?: string | null;
 }
 
 export interface TreeGeneralProperties {
@@ -62,28 +70,36 @@ export interface TreeGeneralProperties {
     maxZoomScale?: number,
     isClusterLayout?: boolean,
     extraPerLevelDepthInPx?: number,
-    extraSpaceBetweenNodesInPx?: number
+    extraSpaceBetweenNodesInPx?: number,
 }
 
 export interface TreeNodeShapeProperties {
     shapeType: TreeNodeShapeTypes,
     expandedNodeColor: string,
     collapsedNodeColor: string,
-    stroke: string,
+    strokeColor: string,
     strokeWidth: number,
-    animation: boolean,
-    radius?: number,
-    width?: number,
-    height?: number,
-    animationDuration?: number
+    circleRadius?: number,
+    rectWidth?: number,
+    rectHeight?: number,
+    /**
+     * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
+     * default colors specified in properties.
+     */
+    takeColorsFromData?: boolean;
 }
 
-export interface TreeNodeLinkProperties {
+export interface TreeLinkProperties {
     treeNodeLinkType: TreeNodeLinkTypes
-    stroke: string,
+    strokeColor: string,
     strokeWidth: number,
     animation: boolean,
     animationDuration?: number
+    /**
+     * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
+     * default colors specified in properties.
+     */
+    takeColorsFromData?: boolean
 }
 
 export interface TreeNodeTextProperties {
@@ -98,6 +114,7 @@ export interface TreeNodeTextProperties {
     spaceBetweenNodeAndText?: number
     /**
      * Use textPadding when showBackground is true. It will set padding between text and it's background in px.
+     * This propeties is only used when text is shown outside the node shape.
      * 
      * Defalut Values:
      * 
@@ -111,13 +128,41 @@ export interface TreeNodeTextProperties {
      * If `true` then will display text inside the shape. Make sure to adjust size of shape so that text fits inside correctly.
      */
     showTextInsideShape?: boolean
+    /**
+     * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
+     * default colors specified in properties.
+     */
+    takeColorsFromData?: boolean
+}
+
+export interface TreeNodeImageProperties {
+    /**
+     * If `true` then will display image on nodes and images are taken from data.
+     */
+    showImage: boolean;
+    /**
+     * If there is no image for the node than we show this image.
+     */
+    defaultImageURL?: string;
+    padding?: number,
+    height?: number,
+    width?: number,
+    strokeColor?: string,
+    strokeWidth?: number
+}
+
+export interface TreeNodeProperties {
+    shapeProperties: TreeNodeShapeProperties,
+    textProperties: TreeNodeTextProperties,
+    imageProperties: TreeNodeImageProperties,
+    animation: boolean,
+    animationDuration?: number
 }
 
 export interface TreeProperties {
     generalProperties: TreeGeneralProperties,
-    nodeShapeProperties: TreeNodeShapeProperties,
-    nodeLinkProperties: TreeNodeLinkProperties,
-    nodeTextProperties: TreeNodeTextProperties
+    nodeProperties: TreeNodeProperties,
+    linkProperties: TreeLinkProperties
 }
 
 //enums

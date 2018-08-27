@@ -3629,10 +3629,6 @@
       ease: transition_ease
     };
 
-    function cubicOut(t) {
-      return --t * t * t + 1;
-    }
-
     function cubicInOut(t) {
       return ((t *= 2) <= 1 ? t * t * t : (t -= 2) * t * t + 2) / 2;
     }
@@ -4268,8 +4264,8 @@
          */
         D3Tree.prototype.CreateTree = function () {
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
+            var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
             // set maxExpandedDepth to defaultMaxDepth
             this.maxExpandedDepth = generalProperties.defaultMaxDepth;
             // Generate hierarchy data which gives depth, height and other info.
@@ -4294,11 +4290,11 @@
                 .classed('treeGroup', true);
             // calculate node size i.e. acutal height and width for spacing purpose.
             if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-                this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.radius;
+                this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.circleRadius;
             }
             else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-                this.nodeShapeHeight = nodeShapeProperties.height;
-                this.nodeShapeWidth = nodeShapeProperties.width;
+                this.nodeShapeHeight = nodeShapeProperties.rectHeight;
+                this.nodeShapeWidth = nodeShapeProperties.rectWidth;
             }
             // if text needs to be shown inside the shape then we set `maxAllowedWidth` of text properties to size of node
             if (nodeTextProperties.showTextInsideShape) {
@@ -4307,7 +4303,7 @@
             // only add zoom when no fixed treeheight and treewidth is provided.
             if (generalProperties.enableZoom) {
                 this.dynamicHeightAndWidth = true;
-                this.rootSVG.style('cursor', 'grab');
+                // this.rootSVG.style('cursor', 'grab')
             }
             this._updateTree(); // update the tree if already created or make a new tree.
             if (this.dynamicHeightAndWidth) {
@@ -4326,9 +4322,11 @@
         };
         D3Tree.prototype._setDefaultValuesForTreeProperties = function () {
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var nodeProperties = this.treeProperties.nodeProperties;
+            var nodeShapeProperties = nodeProperties.shapeProperties;
+            var nodeTextProperties = nodeProperties.textProperties;
+            var nodeImageProperties = nodeProperties.imageProperties;
+            var treeLinkProperties = this.treeProperties.linkProperties;
             // general properties
             if (generalProperties.isClusterLayout == undefined) {
                 generalProperties.isClusterLayout = false;
@@ -4345,13 +4343,13 @@
             if (generalProperties.extraSpaceBetweenNodesInPx == undefined) {
                 generalProperties.extraSpaceBetweenNodesInPx = 0;
             }
-            // node shape properties
-            if (nodeShapeProperties.animationDuration == undefined) {
-                nodeShapeProperties.animationDuration = 1000;
+            // node properties
+            if (nodeProperties.animationDuration == undefined) {
+                nodeProperties.animationDuration = 1000;
             }
-            // node link properties
-            if (nodeLinkProperties.animationDuration == undefined) {
-                nodeLinkProperties.animationDuration = 1000;
+            // node shape properties
+            if (nodeShapeProperties.takeColorsFromData == undefined) {
+                nodeShapeProperties.takeColorsFromData = false;
             }
             // node text properties
             if (nodeTextProperties.backgroundColor == undefined) {
@@ -4380,6 +4378,32 @@
                     nodeTextProperties.textPadding = 0;
                 }
             }
+            if (nodeTextProperties.takeColorsFromData == undefined) {
+                nodeTextProperties.takeColorsFromData = false;
+            }
+            // node image properties
+            if (nodeImageProperties.padding == undefined) {
+                nodeImageProperties.padding = 5;
+            }
+            if (nodeImageProperties.defaultImageURL == undefined) {
+                nodeImageProperties.defaultImageURL = 'https://i.stack.imgur.com/KIqMD.png';
+            }
+            if (nodeImageProperties.height == undefined || nodeImageProperties.width == undefined) {
+                nodeImageProperties.height = nodeImageProperties.width = 30 - nodeImageProperties.padding * 2;
+            }
+            if (nodeImageProperties.strokeColor == undefined) {
+                nodeImageProperties.strokeColor = 'none';
+            }
+            if (nodeImageProperties.strokeWidth == undefined) {
+                nodeImageProperties.strokeWidth = 0;
+            }
+            // node link properties
+            if (treeLinkProperties.animationDuration == undefined) {
+                treeLinkProperties.animationDuration = 1000;
+            }
+            if (treeLinkProperties.takeColorsFromData == undefined) {
+                treeLinkProperties.takeColorsFromData = false;
+            }
         };
         /**
          * Creates D3 tree data based on json tree data provided in constructor
@@ -4387,7 +4411,7 @@
         D3Tree.prototype._createTreeData = function () {
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
             // if dynaimicHeightSndWidth is true,s that means no treeheight or treewidth is provided
             // than we calculate it according to the tree data.
             var treeHeight;
@@ -4441,14 +4465,14 @@
                 };
                 // listner will be attached to root SVG.
                 this.rootSVGZoomListner = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
-                    .on('start', function () {
-                    console.log('start');
-                    _this.rootSVG.style('cursor', 'grabbing');
-                })
-                    .on('end', function () {
-                    console.log('end');
-                    _this.rootSVG.style('cursor', 'grab');
-                })
+                    // .on('start', () => {
+                    //     console.log('start');
+                    //     this.rootSVG.style('cursor', 'grabbing');
+                    // })
+                    // .on('end', () => {
+                    //     console.log('end');
+                    //     this.rootSVG.style('cursor', 'grab');
+                    // })
                     .on('zoom', treeGroupZoomAction)
                     .filter(function () {
                     return (event.button == 1 ||
@@ -4456,7 +4480,7 @@
                 });
                 this.rootSVG.call(this.rootSVGZoomListner)
                     .on('dblclick.zoom', function () {
-                    // center to root node on double click
+                    // center to root node on double click.
                     _this._centerNode(_this.treeNodes);
                 })
                     .on('ondragstart', function () {
@@ -4539,6 +4563,8 @@
          */
         D3Tree.prototype._createNodeGroups = function () {
             var _this = this;
+            var nodeProperties = this.treeProperties.nodeProperties;
+            var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
             this.nodes = this.treeGroup.selectAll('g.node')
                 .data(this.treeNodeArray, function (node) {
                 return (node.id || (node.id = ++_this.nodeUID));
@@ -4549,10 +4575,47 @@
                 .attr('transform', function (node) {
                 return Translate(node.x, node.y);
             });
+            // animation will be applicable for whole node i.e. shape, text, image etc.
+            if (nodeProperties.animation) {
+                this.nodesEnter.attr('opacity', 0)
+                    .transition()
+                    .duration(nodeProperties.animationDuration)
+                    // .ease(d3_ease.easeCubicOut)
+                    .attr('opacity', 1);
+                this.nodes.transition()
+                    .duration(nodeProperties.animationDuration)
+                    .attr('transform', function (node) {
+                    return Translate(node.x, node.y);
+                });
+                this.nodes.select('.node-shape')
+                    .transition()
+                    .duration(nodeProperties.animationDuration)
+                    .attr('fill', function (node) {
+                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                });
+                this.nodes.exit()
+                    .attr('opacity', 1)
+                    .transition()
+                    .duration(nodeProperties.animationDuration)
+                    // .ease(d3_ease.easeCubicOut)
+                    .attr('opacity', 0)
+                    .remove();
+            }
+            else {
+                this.nodesEnter.attr('opacity', 1);
+                this.nodes.attr('transform', function (node) {
+                    return Translate(node.x, node.y);
+                });
+                this.nodes.select('.node-shape')
+                    .attr('fill', function (node) {
+                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                });
+                this.nodes.exit().remove();
+            }
         };
         D3Tree.prototype._createNodeShapes = function () {
             var _this = this;
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
             var click = function (node) {
                 if (node.children) { // collapse
                     node._children = node.children;
@@ -4571,65 +4634,64 @@
                     _this._centerNode(node);
                 }
             };
+            var nodeShape;
             if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
-                this.nodesEnter.append('circle')
-                    .attr('r', nodeShapeProperties.radius)
-                    .attr('stroke', nodeShapeProperties.stroke)
-                    .attr('stroke-width', nodeShapeProperties.strokeWidth);
+                nodeShape = this.nodesEnter.append('circle')
+                    .attr('r', nodeShapeProperties.circleRadius);
             }
             else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
-                var squareTransformX = 0 - nodeShapeProperties.width / 2;
-                var squareTransformY = 0 - nodeShapeProperties.height / 2;
-                this.nodesEnter.append('rect')
-                    .attr('x', squareTransformX)
-                    .attr('y', squareTransformY)
-                    .attr('height', nodeShapeProperties.height)
-                    .attr('width', nodeShapeProperties.width)
-                    .attr('stroke', nodeShapeProperties.stroke)
-                    .attr('stroke-width', nodeShapeProperties.strokeWidth);
+                nodeShape = this.nodesEnter.append('rect')
+                    .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
+                    .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
+                    .attr('height', nodeShapeProperties.rectHeight)
+                    .attr('width', nodeShapeProperties.rectWidth);
             }
-            this.nodesEnter.attr('fill', function (node) {
+            nodeShape.classed('node-shape', true)
+                .attr('fill', function (node) {
                 return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
             })
-                .on('click', click)
+                .attr('stroke', nodeShapeProperties.strokeColor)
+                .attr('stroke-width', nodeShapeProperties.strokeWidth);
+            this.nodesEnter.on('click', click)
                 .on('mouseover', function (node, i, elements) {
                 if (node.children || node._children) {
                     select(elements[i]).style('cursor', 'pointer');
                 }
             });
+            if (this.treeProperties.nodeProperties.imageProperties.showImage) {
+                this._createImage();
+            }
             this.nodesEnter.append('title')
                 .text(function (node) {
                 return node.data.name;
             });
-            if (nodeShapeProperties.animation) {
-                this.nodesEnter.attr('opacity', 0)
-                    .transition()
-                    .duration(nodeShapeProperties.animationDuration)
-                    .ease(cubicOut)
-                    .attr('opacity', 1);
-                this.nodes.transition()
-                    .duration(nodeShapeProperties.animationDuration)
-                    .attr('transform', function (node) {
-                    return Translate(node.x, node.y);
-                })
-                    .attr('fill', function (node) {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
-                });
-                this.nodes.exit()
-                    .attr('opacity', 1)
-                    .transition()
-                    .duration(nodeShapeProperties.animationDuration)
-                    .ease(cubicOut)
-                    .attr('opacity', 0)
-                    .remove();
-            }
-            else {
-                this.nodesEnter.attr('opacity', 1);
-                this.nodes.attr('transform', function (node) {
-                    return Translate(node.x, node.y);
-                });
-                this.nodes.exit().remove();
-            }
+        };
+        D3Tree.prototype._createImage = function () {
+            var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
+            var nodeImageEnter = this.nodesEnter.append('g')
+                .classed('node-image', true);
+            nodeImageEnter.append('circle')
+                .attr('r', function () {
+                return nodeImageProperties.height / 2;
+            })
+                .attr('fill', 'none')
+                .attr('stroke', nodeImageProperties.strokeColor)
+                .attr('stroke-width', nodeImageProperties.strokeWidth)
+                .attr('cx', -this.nodeShapeWidth / 2 + nodeImageProperties.padding + nodeImageProperties.width / 2)
+                .attr('cy', 0);
+            nodeImageEnter.append('image')
+                .attr('xlink:href', function (node) {
+                if (node.imageURL) {
+                    return node.imageURL;
+                }
+                else {
+                    return nodeImageProperties.defaultImageURL;
+                }
+            })
+                .attr('width', nodeImageProperties.width)
+                .attr('height', nodeImageProperties.height)
+                .attr('x', -this.nodeShapeWidth / 2 + nodeImageProperties.padding)
+                .attr('y', -nodeImageProperties.height / 2);
         };
         // http://bl.ocks.org/robschmuecker/7880033
         D3Tree.prototype._centerNode = function (node) {
@@ -4643,7 +4705,9 @@
         D3Tree.prototype._createNodeText = function () {
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
+            var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
+            var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
             var textProperties = {
                 fontFamily: nodeTextProperties.fontFamily,
                 fontSize: nodeTextProperties.fontSize,
@@ -4678,8 +4742,19 @@
                 });
                 var svgRect = nodeText.node().getBBox();
                 if (nodeTextProperties.showTextInsideShape) {
-                    nodeText.style('text-anchor', 'middle');
-                    nodeTextGroup.attr('transform', Translate(0, 0));
+                    if (nodeImageProperties.showImage) {
+                        var x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.padding * 2;
+                        nodeText.style('text-anchor', 'start');
+                        nodeTextGroup.attr('transform', Translate(x, 0));
+                        nodeText.text(function (node) {
+                            textProperties.text = node.data.name;
+                            return GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.padding * 2);
+                        });
+                    }
+                    else {
+                        nodeText.style('text-anchor', 'middle');
+                        nodeTextGroup.attr('transform', Translate(0, 0));
+                    }
                 }
                 else {
                     if (generalProperties.orientation == TreeOrientation.horizontal) {
@@ -4746,8 +4821,8 @@
             // }
         };
         D3Tree.prototype._createNodeTextForHorizontalTree = function (nodeTextEnter) {
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
+            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
             // nodeTextEnter.selectAll('text')
             //     .attr('x', adjustXValue)
             //     .style('text-anchor', (node: TreePointNode<any>) => {
@@ -4796,31 +4871,29 @@
             // }
         };
         D3Tree.prototype._createNodeTextForVerticalTree = function (nodeTextEnter) {
-            var _this = this;
-            var nodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            var nodeTextProperties = this.treeProperties.nodeTextProperties;
-            var textProperties = {
-                'fontFamily': nodeTextProperties.fontFamily,
-                'fontSize': nodeTextProperties.fontSize
-            };
-            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-            nodeTextEnter.selectAll('text')
-                .attr('y', function (node) {
-                var totalSpacing = 0;
-                var backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2 : 0;
-                if (node.children) {
-                    totalSpacing = -_this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
-                }
-                else {
-                    totalSpacing = _this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
-                }
-                return totalSpacing;
-            })
-                .style('text-anchor', 'middle')
-                .text(function (node) {
-                textProperties.text = node.data.name;
-                return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-            });
+            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
+            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
+            // let textProperties: TextProperties = {
+            //     'fontFamily': nodeTextProperties.fontFamily,
+            //     'fontSize': nodeTextProperties.fontSize
+            // };
+            // let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
+            // nodeTextEnter.selectAll('text')
+            //     .attr('y', (node: TreePointNode<any>) => {
+            //         let totalSpacing = 0;
+            //         let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
+            //         if (node.children) {
+            //             totalSpacing = -this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
+            //         } else {
+            //             totalSpacing = this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
+            //         }
+            //         return totalSpacing;
+            //     })
+            //     .style('text-anchor', 'middle')
+            //     .text((node: TreePointNode<any>) => {
+            //         textProperties.text = node.data.name;
+            //         return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+            //     });
             // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
             // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
             // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
@@ -4859,9 +4932,9 @@
             // }
         };
         D3Tree.prototype._createNodeLinks = function () {
-            var nodeLinkProperties = this.treeProperties.nodeLinkProperties;
+            var treeLinkProperties = this.treeProperties.linkProperties;
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeAnimationDuration = this.treeProperties.nodeShapeProperties.animationDuration;
+            var nodeAnimationDuration = this.treeProperties.nodeProperties.animationDuration;
             var horizontalCurveLink = linkHorizontal()
                 .x(function (node) { return node.x; })
                 .y(function (node) { return node.y; });
@@ -4892,7 +4965,7 @@
                     "V" + target.y;
             };
             var createPath = function (nodeLink) {
-                if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
+                if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
                     if (generalProperties.orientation == TreeOrientation.horizontal) {
                         return horizontalCurveLink(nodeLink);
                     }
@@ -4900,10 +4973,10 @@
                         return verticalCurveLink(nodeLink);
                     }
                 }
-                else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
+                else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
                     return straightLink(nodeLink.source, nodeLink.target);
                 }
-                else if (nodeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
+                else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
                     if (generalProperties.orientation == TreeOrientation.horizontal) {
                         return horizontalCornerLink(nodeLink.source, nodeLink.target);
                     }
@@ -4920,14 +4993,14 @@
                 .insert("path", "g") //will insert path before g elements
                 .classed('link', true)
                 .attr('fill', 'none')
-                .attr('stroke', nodeLinkProperties.stroke)
-                .attr('stroke-width', nodeLinkProperties.strokeWidth)
+                .attr('stroke', treeLinkProperties.strokeColor)
+                .attr('stroke-width', treeLinkProperties.strokeWidth)
                 .attr('d', createPath);
             nodeLinksEnter.append('title')
                 .text(function (nodeLink) {
                 return nodeLink.source.data.name + " -> " + nodeLink.target.data.name;
             });
-            if (nodeLinkProperties.animation) {
+            if (treeLinkProperties.animation) {
                 nodeLinksEnter.each(function (nodeLink, i, elements) {
                     var linkLength = elements[i].getTotalLength();
                     select(elements[i])
@@ -4935,14 +5008,14 @@
                         .attr("stroke-dashoffset", linkLength)
                         .transition()
                         .delay(nodeAnimationDuration - (nodeAnimationDuration / 3))
-                        .duration(nodeLinkProperties.animationDuration)
+                        .duration(treeLinkProperties.animationDuration)
                         // .ease(d3_ease.easeCubicIn)
                         .attr("stroke-dashoffset", 0);
                 });
                 nodeLinks.attr('stroke-dasharray', '')
                     .attr("stroke-dashoffset", 0)
                     .transition()
-                    .duration(nodeLinkProperties.animationDuration)
+                    .duration(treeLinkProperties.animationDuration)
                     .attr('d', createPath);
                 nodeLinks.exit()
                     .each(function (nodeLink, i, elements) {
@@ -4952,7 +5025,7 @@
                         .attr("stroke-dashoffset", 0)
                         .attr('opacity', 1)
                         .transition()
-                        .duration(nodeLinkProperties.animationDuration)
+                        .duration(treeLinkProperties.animationDuration)
                         // .ease(d3_ease.easeCubicIn)
                         .attr("stroke-dashoffset", linkLength)
                         .attr('opacity', 0)
@@ -4968,399 +5041,19 @@
         };
         return D3Tree;
     }());
+    //# sourceMappingURL=D3Tree.js.map
 
-    // let data =
-    // {
-    //     "name": "Top Level",
-    //     "children": [
-    //         {
-    //             "name": "Level 2: A",
-    //             "children": [
-    //                 { "name": "Son of A" },
-    //                 { "name": "Daughter of A" }
-    //             ]
-    //         },
-    //         { "name": "Level 2: B" }
-    //     ]
-    // };
-    var data = {
-        "name": "flare",
+    var data1 = {
+        "name": "Top Level",
         "children": [
             {
-                "name": "analytics",
+                "name": "Level 2: A",
                 "children": [
-                    {
-                        "name": "cluster",
-                        "children": [
-                            { "name": "AgglomerativeCluster", "weight": 3938 },
-                            { "name": "CommunityStructure", "weight": 3812 },
-                            { "name": "HierarchicalCluster", "weight": 6714 },
-                            { "name": "MergeEdge", "weight": 743 }
-                        ]
-                    },
-                    {
-                        "name": "graph",
-                        "children": [
-                            { "name": "BetweennessCentrality", "weight": 3534 },
-                            { "name": "LinkDistance", "weight": 5731 },
-                            { "name": "MaxFlowMinCut", "weight": 7840 },
-                            { "name": "ShortestPaths", "weight": 5914 },
-                            { "name": "SpanningTree", "weight": 3416 }
-                        ]
-                    },
-                    {
-                        "name": "optimization",
-                        "children": [
-                            { "name": "AspectRatioBanker", "weight": 7074 }
-                        ]
-                    }
+                    { "name": "Son of A" },
+                    { "name": "Daughter of A" }
                 ]
             },
-            {
-                "name": "animate",
-                "children": [
-                    { "name": "Easing", "weight": 17010 },
-                    { "name": "FunctionSequence", "weight": 5842 },
-                    {
-                        "name": "interpolate",
-                        "children": [
-                            { "name": "ArrayInterpolator", "weight": 1983 },
-                            { "name": "ColorInterpolator", "weight": 2047 },
-                            { "name": "DateInterpolator", "weight": 1375 },
-                            { "name": "Interpolator", "weight": 8746 },
-                            { "name": "MatrixInterpolator", "weight": 2202 },
-                            { "name": "NumberInterpolator", "weight": 1382 },
-                            { "name": "ObjectInterpolator", "weight": 1629 },
-                            { "name": "PointInterpolator", "weight": 1675 },
-                            { "name": "RectangleInterpolator", "weight": 2042 }
-                        ]
-                    },
-                    { "name": "ISchedulable", "weight": 1041 },
-                    { "name": "Parallel", "weight": 5176 },
-                    { "name": "Pause", "weight": 449 },
-                    { "name": "Scheduler", "weight": 5593 },
-                    { "name": "Sequence", "weight": 5534 },
-                    { "name": "Transition", "weight": 9201 },
-                    { "name": "Transitioner", "weight": 19975 },
-                    { "name": "TransitionEvent", "weight": 1116 },
-                    { "name": "Tween", "weight": 6006 }
-                ]
-            },
-            {
-                "name": "data",
-                "children": [
-                    {
-                        "name": "converters",
-                        "children": [
-                            { "name": "Converters", "weight": 721 },
-                            { "name": "DelimitedTextConverter", "weight": 4294 },
-                            { "name": "GraphMLConverter", "weight": 9800 },
-                            { "name": "IDataConverter", "weight": 1314 },
-                            { "name": "JSONConverter", "weight": 2220 }
-                        ]
-                    },
-                    { "name": "DataField", "weight": 1759 },
-                    { "name": "DataSchema", "weight": 2165 },
-                    { "name": "DataSet", "weight": 586 },
-                    { "name": "DataSource", "weight": 3331 },
-                    { "name": "DataTable", "weight": 772 },
-                    { "name": "DataUtil", "weight": 3322 }
-                ]
-            },
-            {
-                "name": "display",
-                "children": [
-                    { "name": "DirtySprite", "weight": 8833 },
-                    { "name": "LineSprite", "weight": 1732 },
-                    { "name": "RectSprite", "weight": 3623 },
-                    { "name": "TextSprite", "weight": 10066 }
-                ]
-            },
-            {
-                "name": "flex",
-                "children": [
-                    { "name": "FlareVis", "weight": 4116 }
-                ]
-            },
-            {
-                "name": "physics",
-                "children": [
-                    { "name": "DragForce", "weight": 1082 },
-                    { "name": "GravityForce", "weight": 1336 },
-                    { "name": "IForce", "weight": 319 },
-                    { "name": "NBodyForce", "weight": 10498 },
-                    { "name": "Particle", "weight": 2822 },
-                    { "name": "Simulation", "weight": 9983 },
-                    { "name": "Spring", "weight": 2213 },
-                    { "name": "SpringForce", "weight": 1681 }
-                ]
-            },
-            {
-                "name": "query",
-                "children": [
-                    { "name": "AggregateExpression", "weight": 1616 },
-                    { "name": "And", "weight": 1027 },
-                    { "name": "Arithmetic", "weight": 3891 },
-                    { "name": "Average", "weight": 891 },
-                    { "name": "BinaryExpression", "weight": 2893 },
-                    { "name": "Comparison", "weight": 5103 },
-                    { "name": "CompositeExpression", "weight": 3677 },
-                    { "name": "Count", "weight": 781 },
-                    { "name": "DateUtil", "weight": 4141 },
-                    { "name": "Distinct", "weight": 933 },
-                    { "name": "Expression", "weight": 5130 },
-                    { "name": "ExpressionIterator", "weight": 3617 },
-                    { "name": "Fn", "weight": 3240 },
-                    { "name": "If", "weight": 2732 },
-                    { "name": "IsA", "weight": 2039 },
-                    { "name": "Literal", "weight": 1214 },
-                    { "name": "Match", "weight": 3748 },
-                    { "name": "Maximum", "weight": 843 },
-                    {
-                        "name": "methods",
-                        "children": [
-                            { "name": "add", "weight": 593 },
-                            { "name": "and", "weight": 330 },
-                            { "name": "average", "weight": 287 },
-                            { "name": "count", "weight": 277 },
-                            { "name": "distinct", "weight": 292 },
-                            { "name": "div", "weight": 595 },
-                            { "name": "eq", "weight": 594 },
-                            { "name": "fn", "weight": 460 },
-                            { "name": "gt", "weight": 603 },
-                            { "name": "gte", "weight": 625 },
-                            { "name": "iff", "weight": 748 },
-                            { "name": "isa", "weight": 461 },
-                            { "name": "lt", "weight": 597 },
-                            { "name": "lte", "weight": 619 },
-                            { "name": "max", "weight": 283 },
-                            { "name": "min", "weight": 283 },
-                            { "name": "mod", "weight": 591 },
-                            { "name": "mul", "weight": 603 },
-                            { "name": "neq", "weight": 599 },
-                            { "name": "not", "weight": 386 },
-                            { "name": "or", "weight": 323 },
-                            { "name": "orderby", "weight": 307 },
-                            { "name": "range", "weight": 772 },
-                            { "name": "select", "weight": 296 },
-                            { "name": "stddev", "weight": 363 },
-                            { "name": "sub", "weight": 600 },
-                            { "name": "sum", "weight": 280 },
-                            { "name": "update", "weight": 307 },
-                            { "name": "variance", "weight": 335 },
-                            { "name": "where", "weight": 299 },
-                            { "name": "xor", "weight": 354 },
-                            { "name": "_", "weight": 264 }
-                        ]
-                    },
-                    { "name": "Minimum", "weight": 843 },
-                    { "name": "Not", "weight": 1554 },
-                    { "name": "Or", "weight": 970 },
-                    { "name": "Query", "weight": 13896 },
-                    { "name": "Range", "weight": 1594 },
-                    { "name": "StringUtil", "weight": 4130 },
-                    { "name": "Sum", "weight": 791 },
-                    { "name": "Variable", "weight": 1124 },
-                    { "name": "Variance", "weight": 1876 },
-                    { "name": "Xor", "weight": 1101 }
-                ]
-            },
-            {
-                "name": "scale",
-                "children": [
-                    { "name": "IScaleMap", "weight": 2105 },
-                    { "name": "LinearScale", "weight": 1316 },
-                    { "name": "LogScale", "weight": 3151 },
-                    { "name": "OrdinalScale", "weight": 3770 },
-                    { "name": "QuantileScale", "weight": 2435 },
-                    { "name": "QuantitativeScale", "weight": 4839 },
-                    { "name": "RootScale", "weight": 1756 },
-                    { "name": "Scale", "weight": 4268 },
-                    { "name": "ScaleType", "weight": 1821 },
-                    { "name": "TimeScale", "weight": 5833 }
-                ]
-            },
-            {
-                "name": "util",
-                "children": [
-                    { "name": "Arrays", "weight": 8258 },
-                    { "name": "Colors", "weight": 10001 },
-                    { "name": "Dates", "weight": 8217 },
-                    { "name": "Displays", "weight": 12555 },
-                    { "name": "Filter", "weight": 2324 },
-                    { "name": "Geometry", "weight": 10993 },
-                    {
-                        "name": "heap",
-                        "children": [
-                            { "name": "FibonacciHeap", "weight": 9354 },
-                            { "name": "HeapNode", "weight": 1233 }
-                        ]
-                    },
-                    { "name": "IEvaluable", "weight": 335 },
-                    { "name": "IPredicate", "weight": 383 },
-                    { "name": "IValueProxy", "weight": 874 },
-                    {
-                        "name": "math",
-                        "children": [
-                            { "name": "DenseMatrix", "weight": 3165 },
-                            { "name": "IMatrix", "weight": 2815 },
-                            { "name": "SparseMatrix", "weight": 3366 }
-                        ]
-                    },
-                    { "name": "Maths", "weight": 17705 },
-                    { "name": "Orientation", "weight": 1486 },
-                    {
-                        "name": "palette",
-                        "children": [
-                            { "name": "ColorPalette", "weight": 6367 },
-                            { "name": "Palette", "weight": 1229 },
-                            { "name": "ShapePalette", "weight": 2059 },
-                            { "name": "SizePalette", "weight": 2291 }
-                        ]
-                    },
-                    { "name": "Property", "weight": 5559 },
-                    { "name": "Shapes", "weight": 19118 },
-                    { "name": "Sort", "weight": 6887 },
-                    { "name": "Stats", "weight": 6557 },
-                    { "name": "Strings", "weight": 22026 }
-                ]
-            },
-            {
-                "name": "vis",
-                "children": [
-                    {
-                        "name": "axis",
-                        "children": [
-                            { "name": "Axes", "weight": 1302 },
-                            { "name": "Axis", "weight": 24593 },
-                            { "name": "AxisGridLine", "weight": 652 },
-                            { "name": "AxisLabel", "weight": 636 },
-                            { "name": "CartesianAxes", "weight": 6703 }
-                        ]
-                    },
-                    {
-                        "name": "controls",
-                        "children": [
-                            { "name": "AnchorControl", "weight": 2138 },
-                            { "name": "ClickControl", "weight": 3824 },
-                            { "name": "Control", "weight": 1353 },
-                            { "name": "ControlList", "weight": 4665 },
-                            { "name": "DragControl", "weight": 2649 },
-                            { "name": "ExpandControl", "weight": 2832 },
-                            { "name": "HoverControl", "weight": 4896 },
-                            { "name": "IControl", "weight": 763 },
-                            { "name": "PanZoomControl", "weight": 5222 },
-                            { "name": "SelectionControl", "weight": 7862 },
-                            { "name": "TooltipControl", "weight": 8435 }
-                        ]
-                    },
-                    {
-                        "name": "data",
-                        "children": [
-                            { "name": "Data", "weight": 20544 },
-                            { "name": "DataList", "weight": 19788 },
-                            { "name": "DataSprite", "weight": 10349 },
-                            { "name": "EdgeSprite", "weight": 3301 },
-                            { "name": "NodeSprite", "weight": 19382 },
-                            {
-                                "name": "render",
-                                "children": [
-                                    { "name": "ArrowType", "weight": 698 },
-                                    { "name": "EdgeRenderer", "weight": 5569 },
-                                    { "name": "IRenderer", "weight": 353 },
-                                    { "name": "ShapeRenderer", "weight": 2247 }
-                                ]
-                            },
-                            { "name": "ScaleBinding", "weight": 11275 },
-                            { "name": "Tree", "weight": 7147 },
-                            { "name": "TreeBuilder", "weight": 9930 }
-                        ]
-                    },
-                    {
-                        "name": "events",
-                        "children": [
-                            { "name": "DataEvent", "weight": 2313 },
-                            { "name": "SelectionEvent", "weight": 1880 },
-                            { "name": "TooltipEvent", "weight": 1701 },
-                            { "name": "VisualizationEvent", "weight": 1117 }
-                        ]
-                    },
-                    {
-                        "name": "legend",
-                        "children": [
-                            { "name": "Legend", "weight": 20859 },
-                            { "name": "LegendItem", "weight": 4614 },
-                            { "name": "LegendRange", "weight": 10530 }
-                        ]
-                    },
-                    {
-                        "name": "operator",
-                        "children": [
-                            {
-                                "name": "distortion",
-                                "children": [
-                                    { "name": "BifocalDistortion", "weight": 4461 },
-                                    { "name": "Distortion", "weight": 6314 },
-                                    { "name": "FisheyeDistortion", "weight": 3444 }
-                                ]
-                            },
-                            {
-                                "name": "encoder",
-                                "children": [
-                                    { "name": "ColorEncoder", "weight": 3179 },
-                                    { "name": "Encoder", "weight": 4060 },
-                                    { "name": "PropertyEncoder", "weight": 4138 },
-                                    { "name": "ShapeEncoder", "weight": 1690 },
-                                    { "name": "SizeEncoder", "weight": 1830 }
-                                ]
-                            },
-                            {
-                                "name": "filter",
-                                "children": [
-                                    { "name": "FisheyeTreeFilter", "weight": 5219 },
-                                    { "name": "GraphDistanceFilter", "weight": 3165 },
-                                    { "name": "VisibilityFilter", "weight": 3509 }
-                                ]
-                            },
-                            { "name": "IOperator", "weight": 1286 },
-                            {
-                                "name": "label",
-                                "children": [
-                                    { "name": "Labeler", "weight": 9956 },
-                                    { "name": "RadialLabeler", "weight": 3899 },
-                                    { "name": "StackedAreaLabeler", "weight": 3202 }
-                                ]
-                            },
-                            {
-                                "name": "layout",
-                                "children": [
-                                    { "name": "AxisLayout", "weight": 6725 },
-                                    { "name": "BundledEdgeRouter", "weight": 3727 },
-                                    { "name": "CircleLayout", "weight": 9317 },
-                                    { "name": "CirclePackingLayout", "weight": 12003 },
-                                    { "name": "DendrogramLayout", "weight": 4853 },
-                                    { "name": "ForceDirectedLayout", "weight": 8411 },
-                                    { "name": "IcicleTreeLayout", "weight": 4864 },
-                                    { "name": "IndentedTreeLayout", "weight": 3174 },
-                                    { "name": "Layout", "weight": 7881 },
-                                    { "name": "NodeLinkTreeLayout", "weight": 12870 },
-                                    { "name": "PieLayout", "weight": 2728 },
-                                    { "name": "RadialTreeLayout", "weight": 12348 },
-                                    { "name": "RandomLayout", "weight": 870 },
-                                    { "name": "StackedAreaLayout", "weight": 9121 },
-                                    { "name": "TreeMapLayout", "weight": 9191 }
-                                ]
-                            },
-                            { "name": "Operator", "weight": 2490 },
-                            { "name": "OperatorList", "weight": 5248 },
-                            { "name": "OperatorSequence", "weight": 4190 },
-                            { "name": "OperatorSwitch", "weight": 2581 },
-                            { "name": "SortOperator", "weight": 2023 }
-                        ]
-                    },
-                    { "name": "Visualization", "weight": 16540 }
-                ]
-            }
+            { "name": "Level 2: B" }
         ]
     };
     var height = 600;
@@ -5379,44 +5072,56 @@
         'enableZoom': true,
         'minZoomScale': 0.2,
         'maxZoomScale': 3,
-        'extraPerLevelDepthInPx': 0,
-        'extraSpaceBetweenNodesInPx': 0
+        'extraPerLevelDepthInPx': 50,
+        'extraSpaceBetweenNodesInPx': 5
     };
     var treeNodeShapeProperties = {
-        'shapeType': TreeNodeShapeTypes.circle,
-        'radius': 10,
-        'width': 50,
-        'height': 30,
+        'shapeType': TreeNodeShapeTypes.rect,
+        'circleRadius': 10,
+        'rectWidth': 150,
+        'rectHeight': 70,
         'expandedNodeColor': 'red',
         'collapsedNodeColor': 'green',
-        'stroke': 'black',
-        'strokeWidth': 2,
-        'animation': true
+        'strokeColor': 'black',
+        'strokeWidth': 2
     };
-    var treeNodeLinkProperties = {
+    var treeLinkProperties = {
         'treeNodeLinkType': TreeNodeLinkTypes.curved,
-        'stroke': '#ccc',
+        'strokeColor': '#ccc',
         'strokeWidth': 3,
         'animation': true
     };
     var treeNodeTextProperties = {
         'fontFamily': 'Arial',
-        'fontSize': '15px',
+        'fontSize': '20px',
         'foregroundColor': 'black',
         'showBackground': false,
         'backgroundColor': 'pink',
         'maxAllowedWidth': 50,
         'textPadding': 5,
         'spaceBetweenNodeAndText': 10,
-        'showTextInsideShape': false
+        'showTextInsideShape': true
+    };
+    var treeNodeImageProperties = {
+        showImage: true,
+        padding: 5,
+        height: 50,
+        width: 50,
+        strokeColor: 'black',
+        strokeWidth: 3
+    };
+    var treeNodeProperties = {
+        shapeProperties: treeNodeShapeProperties,
+        textProperties: treeNodeTextProperties,
+        imageProperties: treeNodeImageProperties,
+        animation: true
     };
     var treeProperties = {
         generalProperties: treeGeneralProperties,
-        nodeShapeProperties: treeNodeShapeProperties,
-        nodeLinkProperties: treeNodeLinkProperties,
-        nodeTextProperties: treeNodeTextProperties
+        nodeProperties: treeNodeProperties,
+        linkProperties: treeLinkProperties
     };
-    var d3Tree = new D3Tree(rootSVG, data, treeProperties);
+    var d3Tree = new D3Tree(rootSVG, data1, treeProperties);
     // get tree data, create tree data and place tree node in html
     d3Tree.CreateTree();
     // //add node shapes
@@ -5430,6 +5135,5 @@
     // d3Tree.CreateNodeLinks(treeNodeLinkProperties, treeGeneralProperties);
     // //adding node texts
     // d3Tree.CreateNodeText(treeGeneralProperties, treeNodeShapeProperties, treeNodeTextProperties);
-    //# sourceMappingURL=app.js.map
 
 })));
