@@ -1,4 +1,4 @@
-import { TreeNodeShapeTypes, TreeOrientation, TreeNodeLinkTypes } from './D3TreeInterfaces';
+import { ShapeType, Orientation, LineType, Position } from './D3TreeInterfaces';
 import { tree, hierarchy, cluster } from 'd3-hierarchy';
 import { SVGUtils } from './Utils';
 import { linkHorizontal, linkVertical } from 'd3-shape';
@@ -56,10 +56,10 @@ var D3Tree = /** @class */ (function () {
             .append('g')
             .classed('treeGroup', true);
         // calculate node size i.e. acutal height and width for spacing purpose.
-        if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
+        if (nodeShapeProperties.shapeType == ShapeType.circle) {
             this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.circleRadius;
         }
-        else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+        else if (nodeShapeProperties.shapeType == ShapeType.rect) {
             this.nodeShapeHeight = nodeShapeProperties.rectHeight;
             this.nodeShapeWidth = nodeShapeProperties.rectWidth;
         }
@@ -98,8 +98,8 @@ var D3Tree = /** @class */ (function () {
         if (generalProperties.isClusterLayout == undefined) {
             generalProperties.isClusterLayout = false;
         }
-        if (generalProperties.extraPerLevelDepthInPx == undefined) {
-            generalProperties.extraPerLevelDepthInPx = 0;
+        if (generalProperties.extraPerLevelDepth == undefined) {
+            generalProperties.extraPerLevelDepth = 0;
         }
         if (generalProperties.minZoomScale == undefined) {
             generalProperties.minZoomScale = 0.2;
@@ -107,8 +107,8 @@ var D3Tree = /** @class */ (function () {
         if (generalProperties.maxZoomScale == undefined) {
             generalProperties.minZoomScale = 3;
         }
-        if (generalProperties.extraSpaceBetweenNodesInPx == undefined) {
-            generalProperties.extraSpaceBetweenNodesInPx = 0;
+        if (generalProperties.extraSpaceBetweenNodes == undefined) {
+            generalProperties.extraSpaceBetweenNodes = 0;
         }
         // node properties
         if (nodeProperties.animationDuration == undefined) {
@@ -149,20 +149,29 @@ var D3Tree = /** @class */ (function () {
             nodeTextProperties.takeColorsFromData = false;
         }
         // node image properties
-        if (nodeImageProperties.padding == undefined) {
-            nodeImageProperties.padding = 5;
-        }
         if (nodeImageProperties.defaultImageURL == undefined) {
             nodeImageProperties.defaultImageURL = 'https://i.stack.imgur.com/KIqMD.png';
         }
         if (nodeImageProperties.height == undefined || nodeImageProperties.width == undefined) {
-            nodeImageProperties.height = nodeImageProperties.width = 30 - nodeImageProperties.padding * 2;
+            nodeImageProperties.height = nodeImageProperties.width = 30;
         }
         if (nodeImageProperties.strokeColor == undefined) {
             nodeImageProperties.strokeColor = 'none';
         }
         if (nodeImageProperties.strokeWidth == undefined) {
             nodeImageProperties.strokeWidth = 0;
+        }
+        if (nodeImageProperties.shape == undefined) {
+            nodeImageProperties.shape = ShapeType.none;
+        }
+        if (nodeImageProperties.position == undefined) {
+            nodeImageProperties.position = Position.left;
+        }
+        if (nodeImageProperties.xOffset == undefined) {
+            nodeImageProperties.xOffset = 0;
+        }
+        if (nodeImageProperties.yOffset == undefined) {
+            nodeImageProperties.yOffset = 0;
         }
         // node link properties
         if (treeLinkProperties.animationDuration == undefined) {
@@ -192,12 +201,12 @@ var D3Tree = /** @class */ (function () {
         if (this.dynamicHeightAndWidth) {
             // Find longest text width present in tree to calculate proper spacing between nodes.
             if (nodeTextProperties.showTextInsideShape) {
-                treeWidth = (this.nodeShapeWidth + generalProperties.extraPerLevelDepthInPx) * (this.maxExpandedDepth + 1);
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth;
+                treeWidth = (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
+                if (generalProperties.orientation == Orientation.horizontal) {
+                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
                 }
                 else {
-                    treeHeight = this.hierarchyData.leaves().length * this.nodeShapeWidth * 1.3;
+                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
                 }
             }
             else {
@@ -214,11 +223,11 @@ var D3Tree = /** @class */ (function () {
                 findMaxTextLength_1(0, this.hierarchyData);
                 var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
                 // if node shape size is greater than text height than use that for treeHeight calculation
-                var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodesInPx;
+                var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
                 var perNodeWidth = 0;
                 perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
-                treeWidth = (maxTextWidth_1 + generalProperties.extraPerLevelDepthInPx) * (this.maxExpandedDepth + 1);
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
+                treeWidth = (maxTextWidth_1 + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
+                if (generalProperties.orientation == Orientation.horizontal) {
                     treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
                 }
                 else {
@@ -256,9 +265,9 @@ var D3Tree = /** @class */ (function () {
         }
         else {
             // to set right margin for fixed height and width tree, we do following calculations.
-            var fixedMargin = 10;
+            var fixedMarginForTree = 10;
             var rootNodeTextSize = MeasureTextSize(textProperties, this.hierarchyData.data.name);
-            if (generalProperties.orientation == TreeOrientation.horizontal) {
+            if (generalProperties.orientation == Orientation.horizontal) {
                 var maxLeaveNodesTextWidth_1 = 0;
                 var rootNodeWidth = 0;
                 var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
@@ -278,11 +287,11 @@ var D3Tree = /** @class */ (function () {
                 else {
                     treeWidth = generalProperties.containerWidth - (rootNodeWidth + maxLeaveNodesTextWidth_1 + fixedNodeWidth);
                 }
-                treeWidth -= fixedMargin * 2;
-                treeHeight = generalProperties.containerHeight - fixedMargin * 2;
+                treeWidth -= fixedMarginForTree * 2;
+                treeHeight = generalProperties.containerHeight - fixedMarginForTree * 2;
                 this.treeGroup.transition()
                     .duration(1000)
-                    .attr('transform', Translate(rootNodeWidth + fixedMargin, fixedMargin));
+                    .attr('transform', Translate(rootNodeWidth + fixedMarginForTree, fixedMarginForTree));
             }
             else {
                 var nodeHeight = 0;
@@ -299,11 +308,11 @@ var D3Tree = /** @class */ (function () {
                 else {
                     treeWidth = generalProperties.containerHeight - nodeHeight * 2;
                 }
-                treeHeight = generalProperties.containerWidth - fixedMargin * 2;
-                treeWidth -= fixedMargin * 2;
+                treeHeight = generalProperties.containerWidth - fixedMarginForTree * 2;
+                treeWidth -= fixedMarginForTree * 2;
                 this.treeGroup.transition()
                     .duration(1000)
-                    .attr('transform', Translate(fixedMargin, fixedMargin + nodeHeight));
+                    .attr('transform', Translate(fixedMarginForTree, fixedMarginForTree + nodeHeight));
             }
         }
         if (generalProperties.isClusterLayout) {
@@ -316,7 +325,7 @@ var D3Tree = /** @class */ (function () {
         this.treeNodes = this.tree(this.hierarchyData);
         this.treeNodeArray = this.treeNodes.descendants();
         // if orientation is horizontal than swap the x and y
-        if (generalProperties.orientation == TreeOrientation.horizontal) {
+        if (generalProperties.orientation == Orientation.horizontal) {
             this.treeNodeArray.forEach(function (node) {
                 node.x = node.x + node.y;
                 node.y = node.x - node.y;
@@ -402,11 +411,11 @@ var D3Tree = /** @class */ (function () {
             }
         };
         var nodeShape;
-        if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.circle) {
+        if (nodeShapeProperties.shapeType == ShapeType.circle) {
             nodeShape = this.nodesEnter.append('circle')
                 .attr('r', nodeShapeProperties.circleRadius);
         }
-        else if (nodeShapeProperties.shapeType == TreeNodeShapeTypes.rect) {
+        else if (nodeShapeProperties.shapeType == ShapeType.rect) {
             nodeShape = this.nodesEnter.append('rect')
                 .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
                 .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
@@ -426,26 +435,70 @@ var D3Tree = /** @class */ (function () {
             }
         });
         if (this.treeProperties.nodeProperties.imageProperties.showImage) {
-            this._createImage();
+            this._addImageToNode();
         }
         this.nodesEnter.append('title')
             .text(function (node) {
             return node.data.name;
         });
     };
-    D3Tree.prototype._createImage = function () {
+    D3Tree.prototype._addImageToNode = function () {
+        var _this = this;
         var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
         var nodeImageEnter = this.nodesEnter.append('g')
             .classed('node-image', true);
-        nodeImageEnter.append('circle')
-            .attr('r', function () {
-            return nodeImageProperties.height / 2;
-        })
-            .attr('fill', 'none')
-            .attr('stroke', nodeImageProperties.strokeColor)
-            .attr('stroke-width', nodeImageProperties.strokeWidth)
-            .attr('cx', -this.nodeShapeWidth / 2 + nodeImageProperties.padding + nodeImageProperties.width / 2)
-            .attr('cy', 0);
+        var imageX = function () {
+            var x = 0;
+            var maxAllowedX = 0;
+            if (!_this.treeProperties.nodeProperties.textProperties.showTextInsideShape) {
+                x = -nodeImageProperties.width / 2;
+            }
+            else if (nodeImageProperties.position == Position.left) {
+                x = -_this.nodeShapeWidth / 2 + nodeImageProperties.xOffset;
+                maxAllowedX = nodeImageProperties.width + _this.nodeShapeWidth / 2;
+                if (Math.abs(x) > maxAllowedX) {
+                    x = -maxAllowedX;
+                    // console.log('too much x offest not allowed');
+                }
+            }
+            else if (nodeImageProperties.position == Position.right) {
+                x = _this.nodeShapeWidth / 2 - nodeImageProperties.width + nodeImageProperties.xOffset;
+                maxAllowedX = _this.nodeShapeWidth / 2;
+                if (Math.abs(x) > maxAllowedX) {
+                    x = maxAllowedX;
+                    // console.log('too much x offest not allowed');
+                }
+            }
+            return x;
+        };
+        var imageY = function () {
+            var y;
+            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
+                y = -nodeImageProperties.height / 2;
+            }
+            return y;
+        };
+        if (nodeImageProperties.shape == ShapeType.circle) {
+            nodeImageEnter.append('circle')
+                .attr('r', function () {
+                return nodeImageProperties.height / 2;
+            })
+                .attr('fill', 'none')
+                .attr('stroke', nodeImageProperties.strokeColor)
+                .attr('stroke-width', nodeImageProperties.strokeWidth)
+                .attr('cx', imageX() + nodeImageProperties.width / 2)
+                .attr('cy', 0);
+        }
+        else if (nodeImageProperties.shape == ShapeType.rect) {
+            nodeImageEnter.append('rect')
+                .attr('height', nodeImageProperties.height)
+                .attr('width', nodeImageProperties.width)
+                .attr('fill', 'none')
+                .attr('stroke', nodeImageProperties.strokeColor)
+                .attr('stroke-width', nodeImageProperties.strokeWidth)
+                .attr('x', imageX)
+                .attr('y', imageY);
+        }
         nodeImageEnter.append('image')
             .attr('xlink:href', function (node) {
             if (node.imageURL) {
@@ -457,8 +510,8 @@ var D3Tree = /** @class */ (function () {
         })
             .attr('width', nodeImageProperties.width)
             .attr('height', nodeImageProperties.height)
-            .attr('x', -this.nodeShapeWidth / 2 + nodeImageProperties.padding)
-            .attr('y', -nodeImageProperties.height / 2);
+            .attr('x', imageX)
+            .attr('y', imageY);
     };
     // http://bl.ocks.org/robschmuecker/7880033
     D3Tree.prototype._centerNode = function (node) {
@@ -482,14 +535,6 @@ var D3Tree = /** @class */ (function () {
             fontWeight: nodeTextProperties.fontWeight
         };
         var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
-        var adjustXValue = function (node) {
-            if (node.children) {
-                return -_this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText;
-            }
-            else {
-                return _this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText;
-            }
-        };
         var nodeTextEnter = this.nodesEnter
             .append('g')
             .classed('nodeText', true)
@@ -502,11 +547,6 @@ var D3Tree = /** @class */ (function () {
                 .style('font-family', nodeTextProperties.fontFamily)
                 .style('font-weight', nodeTextProperties.fontWeight)
                 .style('font-style', nodeTextProperties.fontStyle)
-                // .attr('x', adjustXValue)
-                // .style('text-anchor', (node: TreePointNode<any>) => {
-                //     let textAnchor = node.children ? 'end': 'start';
-                //     return textAnchor;
-                // })
                 .text(function (node) {
                 textProperties.text = node.data.name;
                 return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
@@ -518,45 +558,63 @@ var D3Tree = /** @class */ (function () {
             var svgRect = nodeText.node().getBBox();
             if (nodeTextProperties.showTextInsideShape) {
                 if (nodeImageProperties.showImage) {
-                    var x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.padding * 2;
-                    nodeText.style('text-anchor', 'start');
-                    nodeTextGroup.attr('transform', Translate(x, 0));
-                    nodeText.text(function (node) {
+                    var textTransform = function () {
+                        var x = 0;
+                        var y = 0;
+                        if (nodeImageProperties.position == Position.left) {
+                            x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
+                            y = 0;
+                        }
+                        else if (nodeImageProperties.position == Position.right) {
+                            x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding + nodeTextProperties.textPadding;
+                            y = 0;
+                        }
+                        return Translate(x, y);
+                    };
+                    var getTailoredTextBasedOnImage = function (node) {
+                        var tailoredText = '';
                         textProperties.text = node.data.name;
-                        return GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.padding * 2);
-                    });
+                        if (nodeImageProperties.position == Position.left) {
+                            tailoredText = GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width + Math.abs(nodeImageProperties.xOffset) - nodeTextProperties.textPadding);
+                        }
+                        else if (nodeImageProperties.position == Position.right) {
+                            tailoredText = GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding);
+                        }
+                        return tailoredText;
+                    };
+                    nodeText.style('text-anchor', 'start')
+                        .text(getTailoredTextBasedOnImage);
+                    nodeTextGroup.attr('transform', textTransform);
                 }
                 else {
                     nodeText.style('text-anchor', 'middle');
                     nodeTextGroup.attr('transform', Translate(0, 0));
                 }
             }
-            else {
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
-                    nodeTextGroup.attr('transform', function (node) {
-                        var x = 0;
-                        var y = 0;
-                        if (node.children) {
-                            x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2);
-                        }
-                        else {
-                            x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2;
-                        }
-                        return Translate(x, y);
-                    });
-                }
-                else {
-                    nodeTextGroup.attr('transform', function (node) {
-                        var x = svgRect.width / 2;
-                        var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
-                        if (node.children) {
-                            return Translate(-x, -y);
-                        }
-                        else {
-                            return Translate(-x, y);
-                        }
-                    });
-                }
+            else if (generalProperties.orientation == Orientation.horizontal) {
+                nodeTextGroup.attr('transform', function (node) {
+                    var x = 0;
+                    var y = 0;
+                    if (node.children) {
+                        x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2);
+                    }
+                    else {
+                        x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2;
+                    }
+                    return Translate(x, y);
+                });
+            }
+            else if (generalProperties.orientation == Orientation.vertical) {
+                nodeTextGroup.attr('transform', function (node) {
+                    var x = svgRect.width / 2;
+                    var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
+                    if (node.children) {
+                        return Translate(-x, -y);
+                    }
+                    else {
+                        return Translate(-x, y);
+                    }
+                });
             }
             if (nodeTextProperties.showBackground && !nodeTextProperties.showTextInsideShape) {
                 nodeTextGroup.insert('rect', 'text')
@@ -721,11 +779,11 @@ var D3Tree = /** @class */ (function () {
                 "L" + target.x + "," + target.y;
         };
         var nodePerpendicularLineLength = 0;
-        if (generalProperties.orientation == TreeOrientation.horizontal) {
-            nodePerpendicularLineLength = this.nodeShapeWidth + generalProperties.extraPerLevelDepthInPx * 0.3;
+        if (generalProperties.orientation == Orientation.horizontal) {
+            nodePerpendicularLineLength = this.nodeShapeWidth / 2 + (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * 0.4;
         }
         else {
-            nodePerpendicularLineLength = this.nodeShapeHeight + generalProperties.extraPerLevelDepthInPx * 0.3;
+            nodePerpendicularLineLength = this.nodeShapeHeight / 2 + (this.nodeShapeHeight + generalProperties.extraPerLevelDepth) * 0.4;
         }
         var horizontalCornerLink = function (source, target) {
             return "M" + source.x + "," + source.y +
@@ -740,19 +798,19 @@ var D3Tree = /** @class */ (function () {
                 "V" + target.y;
         };
         var createPath = function (nodeLink) {
-            if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.curved) {
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
+            if (treeLinkProperties.treeNodeLinkType == LineType.curved) {
+                if (generalProperties.orientation == Orientation.horizontal) {
                     return horizontalCurveLink(nodeLink);
                 }
                 else {
                     return verticalCurveLink(nodeLink);
                 }
             }
-            else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.straight) {
+            else if (treeLinkProperties.treeNodeLinkType == LineType.straight) {
                 return straightLink(nodeLink.source, nodeLink.target);
             }
-            else if (treeLinkProperties.treeNodeLinkType == TreeNodeLinkTypes.corner) {
-                if (generalProperties.orientation == TreeOrientation.horizontal) {
+            else if (treeLinkProperties.treeNodeLinkType == LineType.corner) {
+                if (generalProperties.orientation == Orientation.horizontal) {
                     return horizontalCornerLink(nodeLink.source, nodeLink.target);
                 }
                 else {

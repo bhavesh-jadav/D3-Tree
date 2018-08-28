@@ -1,7 +1,7 @@
 import { 
     TreeGeneralProperties, TreeLinkProperties, TreeNodeTextProperties, TreeProperties,
-    TreeNodeShapeProperties, TreeNodeShapeTypes, TreeOrientation, TreeNodeLinkTypes, TreeData,
-    TreeNodeProperties, TreeNodeImageProperties
+    TreeNodeShapeProperties, ShapeType, Orientation, LineType, TreeData,
+    TreeNodeProperties, TreeNodeImageProperties, Position
 } from './D3TreeInterfaces';
 import { D3Tree } from './D3Tree';
 import { select } from 'd3-selection'
@@ -404,12 +404,6 @@ let data2: TreeData = {
 
 let height = 600;
 let width = 800;
-let margin = {
-    'left': 10,
-    'right': 10,
-    'top': 10,
-    'bottom': 10
-}
 
 let rootSVG = select('body')
     .append('svg')
@@ -418,55 +412,57 @@ let rootSVG = select('body')
     .style('background-color', '#F2F2F2');
 
 let treeGeneralProperties: TreeGeneralProperties = {
-    'orientation': TreeOrientation.horizontal,
-    'defaultMaxDepth': 1, // n - 1 depth
-    'isClusterLayout': false,
-    'containerHeight': height,
-    'containerWidth': width,
-    'enableZoom': true,
-    'minZoomScale': 0.2,
-    'maxZoomScale': 3,
-    'extraPerLevelDepthInPx': 50,
-    'extraSpaceBetweenNodesInPx': 5
+    orientation: Orientation.horizontal,
+    defaultMaxDepth: 1, // n - 1 depth
+    isClusterLayout: false,
+    containerHeight: height,
+    containerWidth: width,
+    enableZoom: true,
+    minZoomScale: 0.2,
+    maxZoomScale: 3,
+    extraPerLevelDepth: 50,
+    extraSpaceBetweenNodes: 30
 }
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
-    'shapeType' : TreeNodeShapeTypes.rect,
-    'circleRadius': 10,
-    'rectWidth': 150,
-    'rectHeight': 70,
-    'expandedNodeColor': 'red',
-    'collapsedNodeColor': 'green',
-    'strokeColor': 'black',
-    'strokeWidth': 2
+    shapeType: ShapeType.rect,
+    circleRadius: 25,
+    rectWidth: 155,
+    rectHeight: 70,
+    expandedNodeColor: 'red',
+    collapsedNodeColor: 'green',
+    strokeColor: 'black',
+    strokeWidth: 2
 }
 
 let treeLinkProperties: TreeLinkProperties = {
-    'treeNodeLinkType': TreeNodeLinkTypes.curved,
-    'strokeColor': '#ccc',
-    'strokeWidth': 3,
-    'animation': true
+    treeNodeLinkType: LineType.corner,
+    strokeColor: '#ccc',
+    strokeWidth: 5,
+    animation: true
 }
 
 let treeNodeTextProperties: TreeNodeTextProperties = {
-    'fontFamily': 'Arial',
-    'fontSize': '20px',
-    'foregroundColor': 'black',
-    'showBackground': false,
-    'backgroundColor': 'pink',
-    'maxAllowedWidth': 50,
-    'textPadding': 5,
-    'spaceBetweenNodeAndText': 10,
-    'showTextInsideShape': true
+    fontFamily: 'Arial',
+    fontSize: '20px',
+    foregroundColor: 'black',
+    showBackground: false,
+    backgroundColor: 'pink',
+    maxAllowedWidth: 50,
+    textPadding: 5,
+    spaceBetweenNodeAndText: 10,
+    showTextInsideShape: true
 }
 
 let treeNodeImageProperties: TreeNodeImageProperties = {
     showImage: true,
-    padding: 5,
     height:50,
     width:50,
     strokeColor: 'black',
-    strokeWidth: 3
+    strokeWidth: 3,
+    shape: ShapeType.circle,
+    xOffset: -5,
+    position: Position.right
 }
 
 let treeNodeProperties: TreeNodeProperties = {
@@ -482,7 +478,7 @@ let treeProperties: TreeProperties = {
     linkProperties: treeLinkProperties
 }
 
-let d3Tree = new D3Tree(rootSVG, data1, treeProperties);
+let d3Tree = new D3Tree(rootSVG, data2, treeProperties);
 
 // get tree data, create tree data and place tree node in html
 

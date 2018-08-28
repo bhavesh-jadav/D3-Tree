@@ -53,7 +53,7 @@ export interface TreeGeneralProperties {
     /**
      * Either vertical or horizontal orientation.
      */
-    orientation: TreeOrientation,
+    orientation: Orientation,
     defaultMaxDepth: number,
     containerHeight: number,
     containerWidth: number,
@@ -69,12 +69,12 @@ export interface TreeGeneralProperties {
      */
     maxZoomScale?: number,
     isClusterLayout?: boolean,
-    extraPerLevelDepthInPx?: number,
-    extraSpaceBetweenNodesInPx?: number,
+    extraPerLevelDepth?: number,
+    extraSpaceBetweenNodes?: number,
 }
 
 export interface TreeNodeShapeProperties {
-    shapeType: TreeNodeShapeTypes,
+    shapeType: ShapeType,
     expandedNodeColor: string,
     collapsedNodeColor: string,
     strokeColor: string,
@@ -90,7 +90,7 @@ export interface TreeNodeShapeProperties {
 }
 
 export interface TreeLinkProperties {
-    treeNodeLinkType: TreeNodeLinkTypes
+    treeNodeLinkType: LineType
     strokeColor: string,
     strokeWidth: number,
     animation: boolean,
@@ -144,11 +144,14 @@ export interface TreeNodeImageProperties {
      * If there is no image for the node than we show this image.
      */
     defaultImageURL?: string;
-    padding?: number,
     height?: number,
     width?: number,
     strokeColor?: string,
-    strokeWidth?: number
+    strokeWidth?: number,
+    shape?: ShapeType,
+    position?: Position
+    xOffset?: number,
+    yOffset?: number
 }
 
 export interface TreeNodeProperties {
@@ -166,18 +169,26 @@ export interface TreeProperties {
 }
 
 //enums
-export enum TreeNodeShapeTypes {
+export enum ShapeType {
     circle = 'circle',
-    rect = 'rect'
+    rect = 'rect',
+    none = 'none'
 }
 
-export enum TreeNodeLinkTypes {
+export enum LineType {
     straight = 'straight',
     curved = 'curved',
     corner = 'corner'
 }
 
-export enum TreeOrientation {
+export enum Orientation {
     horizontal = 'horizontal',
     vertical = 'vertical'
+}
+
+export enum Position {
+    left = 'left',
+    right = 'right',
+    top = 'top',
+    bottom = 'bottom'
 }
