@@ -421,14 +421,14 @@ let treeGeneralProperties: TreeGeneralProperties = {
     minZoomScale: 0.2,
     maxZoomScale: 3,
     extraPerLevelDepth: 50,
-    extraSpaceBetweenNodes: 30
+    extraSpaceBetweenNodes: 60
 }
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
     shapeType: ShapeType.rect,
     circleRadius: 25,
-    rectWidth: 155,
-    rectHeight: 70,
+    rectWidth: 100,
+    rectHeight: 140,
     expandedNodeColor: 'red',
     collapsedNodeColor: 'green',
     strokeColor: 'black',
@@ -456,13 +456,14 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
 
 let treeNodeImageProperties: TreeNodeImageProperties = {
     showImage: true,
-    height:50,
-    width:50,
+    height:80,
+    width:80,
     strokeColor: 'black',
     strokeWidth: 3,
-    shape: ShapeType.circle,
-    xOffset: -5,
-    position: Position.right
+    shape: ShapeType.none,
+    xOffset: 10,
+    yOffset: 0,
+    position: Position.top
 }
 
 let treeNodeProperties: TreeNodeProperties = {

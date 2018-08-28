@@ -20,7 +20,7 @@ export module SVGUtils {
     }
 
     // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
-    export function MeasureTextSize(textProperties: TextProperties, text?: string) {
+    export function MeasureTextSize(textProperties: TextStyleProperties, text: string) {
 
         createDOM();
 
@@ -34,7 +34,7 @@ export module SVGUtils {
         svgTextElement.style.fontStyle = textProperties.fontStyle;
         svgTextElement.style.whiteSpace = textProperties.whiteSpace || "nowrap";
 
-        svgTextElement.appendChild(document.createTextNode(text || textProperties.text));
+        svgTextElement.appendChild(document.createTextNode(text));
 
         // We're expecting the browser to give a synchronous measurement here
         // We're using SVGTextElement because it works across all browsers
@@ -43,20 +43,20 @@ export module SVGUtils {
     }
 
     // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
-    export function GetTailoredTextOrDefault(textProperties: TextProperties, maxWidth: number): string {
+    export function GetTailoredTextOrDefault(textProperties: TextStyleProperties, maxWidth: number, sourceText: string): string {
         let ellipsis = '...';
         createDOM();
 
-        let strLength: number = textProperties.text.length;
+        let strLength: number = sourceText.length;
 
         if (strLength === 0) {
-            return textProperties.text;
+            return sourceText;
         }
 
-        let width: number = MeasureTextSize(textProperties).width;
+        let width: number = MeasureTextSize(textProperties, sourceText).width;
 
         if (width < maxWidth) {
-            return textProperties.text;
+            return sourceText;
         }
 
         // Create a copy of the textProperties so we don't modify the one that's passed in.
@@ -65,7 +65,7 @@ export module SVGUtils {
         // Take the properties and apply them to svgTextElement
         // Then, do the binary search to figure out the substring we want
         // Set the substring on textElement argument
-        let text = textProperties.text = ellipsis + textProperties.text;
+        let text = sourceText = ellipsis + sourceText;
 
         let min = 1;
         let max = text.length;
@@ -75,8 +75,8 @@ export module SVGUtils {
             // num | 0 prefered to Math.floor(num) for performance benefits
             i = (min + max) / 2 | 0;
 
-            textProperties.text = text.substr(0, i);
-            width = MeasureTextSize(textProperties).width;
+            sourceText = text.substr(0, i);
+            width = MeasureTextSize(textProperties, sourceText).width;
 
             if (maxWidth > width) {
                 min = i + 1;
@@ -91,8 +91,8 @@ export module SVGUtils {
         // it will pick one of the closest two, which could result in a
         // value bigger with than 'maxWidth' thus we need to go back by
         // one to guarantee a smaller width than 'maxWidth'.
-        textProperties.text = text.substr(0, i);
-        width = MeasureTextSize(textProperties).width;
+        sourceText = text.substr(0, i);
+        width = MeasureTextSize(textProperties, sourceText).width;
         if (width > maxWidth) {
             i--;
         }
@@ -105,8 +105,7 @@ export module SVGUtils {
 }
 
 // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
-export interface TextProperties {
-    text?: string;
+export interface TextStyleProperties {
     fontFamily: string;
     fontSize: string;
     fontWeight?: string;

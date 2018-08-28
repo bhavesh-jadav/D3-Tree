@@ -586,7 +586,7 @@
             svgTextElement.style.fontWeight = textProperties.fontWeight;
             svgTextElement.style.fontStyle = textProperties.fontStyle;
             svgTextElement.style.whiteSpace = textProperties.whiteSpace || "nowrap";
-            svgTextElement.appendChild(document.createTextNode(text || textProperties.text));
+            svgTextElement.appendChild(document.createTextNode(text));
             // We're expecting the browser to give a synchronous measurement here
             // We're using SVGTextElement because it works across all browsers
             var textSize = svgTextElement.getBBox();
@@ -594,31 +594,31 @@
         }
         SVGUtils.MeasureTextSize = MeasureTextSize;
         // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts
-        function GetTailoredTextOrDefault(textProperties, maxWidth) {
+        function GetTailoredTextOrDefault(textProperties, maxWidth, sourceText) {
             var ellipsis = '...';
             createDOM();
-            var strLength = textProperties.text.length;
+            var strLength = sourceText.length;
             if (strLength === 0) {
-                return textProperties.text;
+                return sourceText;
             }
-            var width = MeasureTextSize(textProperties).width;
+            var width = MeasureTextSize(textProperties, sourceText).width;
             if (width < maxWidth) {
-                return textProperties.text;
+                return sourceText;
             }
             // Create a copy of the textProperties so we don't modify the one that's passed in.
             // let copiedTextProperties = Prototype.inherit(textProperties);
             // Take the properties and apply them to svgTextElement
             // Then, do the binary search to figure out the substring we want
             // Set the substring on textElement argument
-            var text = textProperties.text = ellipsis + textProperties.text;
+            var text = sourceText = ellipsis + sourceText;
             var min = 1;
             var max = text.length;
             var i = ellipsis.length;
             while (min <= max) {
                 // num | 0 prefered to Math.floor(num) for performance benefits
                 i = (min + max) / 2 | 0;
-                textProperties.text = text.substr(0, i);
-                width = MeasureTextSize(textProperties).width;
+                sourceText = text.substr(0, i);
+                width = MeasureTextSize(textProperties, sourceText).width;
                 if (maxWidth > width) {
                     min = i + 1;
                 }
@@ -633,8 +633,8 @@
             // it will pick one of the closest two, which could result in a
             // value bigger with than 'maxWidth' thus we need to go back by
             // one to guarantee a smaller width than 'maxWidth'.
-            textProperties.text = text.substr(0, i);
-            width = MeasureTextSize(textProperties).width;
+            sourceText = text.substr(0, i);
+            width = MeasureTextSize(textProperties, sourceText).width;
             if (width > maxWidth) {
                 i--;
             }
@@ -4274,6 +4274,13 @@
             var generalProperties = this.treeProperties.generalProperties;
             var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
             var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
+            // set text style which will be used later to calculated text size in px.
+            this.textStyleProperties = {
+                fontFamily: nodeTextProperties.fontFamily,
+                fontSize: nodeTextProperties.fontSize,
+                fontStyle: nodeTextProperties.fontStyle,
+                fontWeight: nodeTextProperties.fontWeight
+            };
             // set maxExpandedDepth to defaultMaxDepth
             this.maxExpandedDepth = generalProperties.defaultMaxDepth;
             // Generate hierarchy data which gives depth, height and other info.
@@ -4433,12 +4440,6 @@
             // than we calculate it according to the tree data.
             var treeHeight;
             var treeWidth;
-            var textProperties = {
-                'fontFamily': nodeTextProperties.fontFamily,
-                'fontSize': nodeTextProperties.fontSize,
-                'fontStyle': nodeTextProperties.fontStyle,
-                'fontWeight': nodeTextProperties.fontWeight
-            };
             if (this.dynamicHeightAndWidth) {
                 // Find longest text width present in tree to calculate proper spacing between nodes.
                 if (nodeTextProperties.showTextInsideShape) {
@@ -4453,7 +4454,7 @@
                 else {
                     var maxTextWidth_1 = 0;
                     var findMaxTextLength_1 = function (level, node) {
-                        var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                        var textWidth = MeasureTextSize(_this.textStyleProperties, node.data.name).width;
                         if (node.children && node.children.length > 0 && level < _this.maxExpandedDepth) {
                             node.children.forEach(function (element) {
                                 findMaxTextLength_1(level + 1, element);
@@ -4462,7 +4463,7 @@
                         maxTextWidth_1 = Math.max(textWidth, maxTextWidth_1);
                     };
                     findMaxTextLength_1(0, this.hierarchyData);
-                    var textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
+                    var textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
                     // if node shape size is greater than text height than use that for treeHeight calculation
                     var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
                     var perNodeWidth = 0;
@@ -4507,7 +4508,7 @@
             else {
                 // to set right margin for fixed height and width tree, we do following calculations.
                 var fixedMarginForTree = 10;
-                var rootNodeTextSize = MeasureTextSize(textProperties, this.hierarchyData.data.name);
+                var rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
                 if (generalProperties.orientation == Orientation.horizontal) {
                     var maxLeaveNodesTextWidth_1 = 0;
                     var rootNodeWidth = 0;
@@ -4519,7 +4520,7 @@
                         rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
                     }
                     this.hierarchyData.leaves().forEach(function (node) {
-                        var textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                        var textWidth = MeasureTextSize(_this.textStyleProperties, node.data.name).width;
                         maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
                     });
                     if (nodeTextProperties.showTextInsideShape) {
@@ -4557,13 +4558,13 @@
                 }
             }
             if (generalProperties.isClusterLayout) {
-                this.tree = cluster().size([treeHeight, treeWidth]);
+                this.treeLayout = cluster().size([treeHeight, treeWidth]);
             }
             else {
-                this.tree = tree().size([treeHeight, treeWidth]);
+                this.treeLayout = tree().size([treeHeight, treeWidth]);
             }
             // get final data
-            this.treeNodes = this.tree(this.hierarchyData);
+            this.treeNodes = this.treeLayout(this.hierarchyData);
             this.treeNodeArray = this.treeNodes.descendants();
             // if orientation is horizontal than swap the x and y
             if (generalProperties.orientation == Orientation.horizontal) {
@@ -4710,12 +4711,25 @@
                         // console.log('too much x offest not allowed');
                     }
                 }
+                else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                    x = -nodeImageProperties.width / 2;
+                }
                 return x;
             };
             var imageY = function () {
                 var y;
+                var maxAllowedY = 0;
+                var textHeight = MeasureTextSize(_this.textStyleProperties, _this.treeNodes.data.name).height;
                 if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
                     y = -nodeImageProperties.height / 2;
+                }
+                else if (nodeImageProperties.position == Position.top) {
+                    y = -_this.nodeShapeHeight / 2 + nodeImageProperties.yOffset;
+                    maxAllowedY = _this.nodeShapeHeight / 2 + nodeImageProperties.height;
+                    if (Math.abs(y) > maxAllowedY) {
+                        y = -maxAllowedY;
+                        // console.log('too much y offest not allowed');
+                    }
                 }
                 return y;
             };
@@ -4767,15 +4781,9 @@
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
             var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
-            var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
             var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
-            var textProperties = {
-                fontFamily: nodeTextProperties.fontFamily,
-                fontSize: nodeTextProperties.fontSize,
-                fontStyle: nodeTextProperties.fontStyle,
-                fontWeight: nodeTextProperties.fontWeight
-            };
             var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
+            var textHeight = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
             var nodeTextEnter = this.nodesEnter
                 .append('g')
                 .classed('nodeText', true)
@@ -4789,8 +4797,7 @@
                     .style('font-weight', nodeTextProperties.fontWeight)
                     .style('font-style', nodeTextProperties.fontStyle)
                     .text(function (node) {
-                    textProperties.text = node.data.name;
-                    return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+                    return GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                 });
                 nodeTextGroup.append('title')
                     .text(function (node) {
@@ -4803,28 +4810,30 @@
                             var x = 0;
                             var y = 0;
                             if (nodeImageProperties.position == Position.left) {
+                                nodeText.style('text-anchor', 'start');
                                 x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                                y = 0;
                             }
                             else if (nodeImageProperties.position == Position.right) {
+                                nodeText.style('text-anchor', 'start');
                                 x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding + nodeTextProperties.textPadding;
-                                y = 0;
+                            }
+                            else if (nodeImageProperties.position == Position.top) {
+                                nodeText.style('text-anchor', 'middle');
+                                y = nodeImageProperties.yOffset + nodeImageProperties.height / 2 + textHeight / 2;
                             }
                             return Translate(x, y);
                         };
                         var getTailoredTextBasedOnImage = function (node) {
                             var tailoredText = '';
-                            textProperties.text = node.data.name;
-                            if (nodeImageProperties.position == Position.left) {
-                                tailoredText = GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width + Math.abs(nodeImageProperties.xOffset) - nodeTextProperties.textPadding);
+                            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
+                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
                             }
-                            else if (nodeImageProperties.position == Position.right) {
-                                tailoredText = GetTailoredTextOrDefault(textProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding);
+                            else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                             }
                             return tailoredText;
                         };
-                        nodeText.style('text-anchor', 'start')
-                            .text(getTailoredTextBasedOnImage);
+                        nodeText.text(getTailoredTextBasedOnImage);
                         nodeTextGroup.attr('transform', textTransform);
                     }
                     else {
@@ -4857,153 +4866,16 @@
                         }
                     });
                 }
-                if (nodeTextProperties.showBackground && !nodeTextProperties.showTextInsideShape) {
+                if (nodeTextProperties.showBackground) {
+                    var svgRect_1 = nodeText.node().getBBox();
                     nodeTextGroup.insert('rect', 'text')
-                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
-                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                        .attr('x', svgRect_1.x - nodeTextProperties.textPadding / 2)
+                        .attr('y', svgRect_1.y - nodeTextProperties.textPadding / 2)
+                        .attr('height', svgRect_1.height + nodeTextProperties.textPadding)
+                        .attr('width', svgRect_1.width + nodeTextProperties.textPadding)
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
-                // select(elements[i]).attr('transform', Translate(10, 0));
-                // console.log(elements[i]);
             });
-            // nodeTextEnter.append('text')
-            //     .attr('fill', nodeTextProperties.foregroundColor)
-            //     .style('dominant-baseline', 'middle')
-            //     .style('font-size', nodeTextProperties.fontSize)
-            //     .style('font-family', nodeTextProperties.fontFamily)
-            //     .style('font-weight', nodeTextProperties.fontWeight)
-            //     .style('font-style', nodeTextProperties.fontStyle);
-            // if (generalProperties.orientation == TreeOrientation.vertical) {
-            //     this._createNodeTextForVerticalTree(nodeTextEnter);
-            // } else {
-            //     this._createNodeTextForHorizontalTree(nodeTextEnter);
-            // }
-            // if (nodeTextProperties.showBackground) {
-            //     this.nodesEnter.selectAll('g.nodeText')
-            //         .insert('rect', 'text')
-            //         .each((d, i, elements) => {
-            //             let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-            //             select(elements[i])
-            //                 .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-            //                 .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-            //                 .attr('height', svgRect.height + nodeTextProperties.textPadding)
-            //                 .attr('width', svgRect.width + nodeTextProperties.textPadding)
-            //                 .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-            //         });
-            // }
-        };
-        D3Tree.prototype._createNodeTextForHorizontalTree = function (nodeTextEnter) {
-            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-            // nodeTextEnter.selectAll('text')
-            //     .attr('x', adjustXValue)
-            //     .style('text-anchor', (node: TreePointNode<any>) => {
-            //         let textAnchor = node.children ? 'end': 'start';
-            //         return textAnchor;
-            //     })
-            //     .text((node: any) => {
-            //         return node.data.name;
-            //     });
-            // this.nodes.select('g.nodeText').select('text')
-            //     .attr('x', adjustXValue);
-            // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
-            //     .data(this.treeDataArray)
-            //     .enter()
-            //     .append('g')
-            //     .attr('transform', (d:any) => {
-            //         let translate = d.children ? Translate(d.y - nodeShapeProperties.size - 8, d.x) :
-            //             Translate(d.y + nodeShapeProperties.size + 8, d.x);
-            //         return translate;
-            //     });
-            // nodeTexts.append('text')
-            //     .attr('fill', nodeTextProperties.foregroundColor)
-            //     .style('dominant-baseline', 'central')
-            //     .text((d: any) => {
-            //         return d.data.name;
-            //     });
-            // nodeTexts.style('text-anchor', (d: any, i, elements) => {
-            //         let textAnchor = d.children ? 'end': 'start';
-            //         return textAnchor;
-            //     });
-            // nodeTexts.append('title')
-            //     .text((d: any) => {
-            //         return d.data.name;
-            //     });
-            // if (nodeTextProperties.enableBackground) {
-            //     nodeTexts.insert('rect', 'text')
-            //     .each((d, i, elements) => {
-            //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-            //         select(elements[i])
-            //             .attr('x', svgRect.x - 2)
-            //             .attr('y', svgRect.y - 2)
-            //             .attr('height', svgRect.height + 4)
-            //             .attr('width', svgRect.width + 4)
-            //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-            //     });
-            // }
-        };
-        D3Tree.prototype._createNodeTextForVerticalTree = function (nodeTextEnter) {
-            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-            // let textProperties: TextProperties = {
-            //     'fontFamily': nodeTextProperties.fontFamily,
-            //     'fontSize': nodeTextProperties.fontSize
-            // };
-            // let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-            // nodeTextEnter.selectAll('text')
-            //     .attr('y', (node: TreePointNode<any>) => {
-            //         let totalSpacing = 0;
-            //         let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
-            //         if (node.children) {
-            //             totalSpacing = -this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
-            //         } else {
-            //             totalSpacing = this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
-            //         }
-            //         return totalSpacing;
-            //     })
-            //     .style('text-anchor', 'middle')
-            //     .text((node: TreePointNode<any>) => {
-            //         textProperties.text = node.data.name;
-            //         return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-            //     });
-            // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-            // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-            // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
-            //     .data(this.treeDataArray)
-            //     .enter()
-            //     .append('g')
-            //     .attr('transform', (d:any) => {
-            //         return Translate(d.x + nodeShapeProperties.size + 8, d.y)
-            //     });
-            // nodeTexts.append('text')
-            //     .attr('fill', nodeTextProperties.foregroundColor)
-            //     .style('dominant-baseline', 'central')
-            //     .text((d: any) => {
-            //         return d.data.name;
-            //     });
-            // nodeTexts.style('text-anchor', (d: any, i, elements) => {
-            //     let textWidth: number = (elements[i] as any).getBBox().width;
-            //     let textAnchor = (textWidth < nodeShapeProperties.size) ? 'middle' : 'start';
-            //     return textAnchor;
-            // });
-            // nodeTexts.append('title')
-            //     .text((d: any) => {
-            //         return d.data.name;
-            //     });
-            // if (nodeTextProperties.showBackground) {
-            //     nodeTexts.insert('rect', 'text')
-            //     .each((d, i, elements) => {
-            //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-            //         select(elements[i])
-            //             .attr('x', svgRect.x - 2)
-            //             .attr('y', svgRect.y - 2)
-            //             .attr('height', svgRect.height + 4)
-            //             .attr('width', svgRect.width + 4)
-            //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-            //     });
-            // }
         };
         D3Tree.prototype._createNodeLinks = function () {
             var treeLinkProperties = this.treeProperties.linkProperties;
@@ -5513,13 +5385,13 @@
         minZoomScale: 0.2,
         maxZoomScale: 3,
         extraPerLevelDepth: 50,
-        extraSpaceBetweenNodes: 30
+        extraSpaceBetweenNodes: 60
     };
     var treeNodeShapeProperties = {
         shapeType: ShapeType.rect,
         circleRadius: 25,
-        rectWidth: 155,
-        rectHeight: 70,
+        rectWidth: 100,
+        rectHeight: 140,
         expandedNodeColor: 'red',
         collapsedNodeColor: 'green',
         strokeColor: 'black',
@@ -5544,13 +5416,14 @@
     };
     var treeNodeImageProperties = {
         showImage: true,
-        height: 50,
-        width: 50,
+        height: 80,
+        width: 80,
         strokeColor: 'black',
         strokeWidth: 3,
-        shape: ShapeType.circle,
-        xOffset: -5,
-        position: Position.right
+        shape: ShapeType.none,
+        xOffset: 10,
+        yOffset: 0,
+        position: Position.top
     };
     var treeNodeProperties = {
         shapeProperties: treeNodeShapeProperties,

@@ -8,7 +8,7 @@ import {
     tree, hierarchy, TreeLayout, cluster,
     HierarchyPointLink, HierarchyNode
 } from 'd3-hierarchy';
-import { SVGUtils, TextProperties } from './Utils';
+import { SVGUtils, TextStyleProperties } from './Utils';
 import { linkHorizontal, linkVertical } from 'd3-shape';
 import { Selection, select, BaseType, event } from 'd3-selection';
 import { zoom, zoomIdentity, ZoomBehavior, zoomTransform } from 'd3-zoom';
@@ -24,7 +24,7 @@ let GetTailoredTextOrDefault = SVGUtils.GetTailoredTextOrDefault;
 export class D3Tree {
 
     private treeGroup: Selection<BaseType, any, any, any>; // Holds the parent group element of the tree.
-    private tree: TreeLayout<any>; // Holds defination of funtion to create tree layout based on given tree type, size and hierarhcy data.
+    private treeLayout: TreeLayout<any>; // Holds defination of funtion to create tree layout based on given tree type, size and hierarhcy data.
     private hierarchyData: HierarchyNode<any>; // Holds hierarchy data which gives information such as depth and height of the nodes and other info.
     private treeNodes: TreePointNode<any>; // Holds tree data created from treeMap and hierarchyData with info such as x and y coordinate of the node.
     private treeNodeArray: TreePointNode<any>[]; // Holds nodes in form of array in chronological order from top to bottom.
@@ -33,6 +33,7 @@ export class D3Tree {
     private maxExpandedDepth: number; // will store max depth of tree visible on screen
     private rootSVGZoomListner: ZoomBehavior<Element, {}>;
     private nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
+    private textStyleProperties: TextStyleProperties;
 
     // node variables *******************************************************************************************************
     private nodes: Selection<BaseType, TreePointNode<any>, BaseType, any>; // holds all nodes selection i.e. nodes that needs to be created, updated or removed.
@@ -59,6 +60,14 @@ export class D3Tree {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
+
+        // set text style which will be used later to calculated text size in px.
+        this.textStyleProperties = {
+            fontFamily: nodeTextProperties.fontFamily,
+            fontSize: nodeTextProperties.fontSize,
+            fontStyle: nodeTextProperties.fontStyle,
+            fontWeight: nodeTextProperties.fontWeight
+        }
 
         // set maxExpandedDepth to defaultMaxDepth
         this.maxExpandedDepth = generalProperties.defaultMaxDepth;
@@ -234,12 +243,6 @@ export class D3Tree {
         // than we calculate it according to the tree data.
         let treeHeight;
         let treeWidth;
-        let textProperties: TextProperties = {
-            'fontFamily': nodeTextProperties.fontFamily,
-            'fontSize': nodeTextProperties.fontSize,
-            'fontStyle': nodeTextProperties.fontStyle,
-            'fontWeight': nodeTextProperties.fontWeight
-        }
 
         if (this.dynamicHeightAndWidth) {
 
@@ -254,7 +257,7 @@ export class D3Tree {
             } else {
                 let maxTextWidth = 0;
                 let findMaxTextLength = (level: number, node: any) => {
-                    let textWidth = MeasureTextSize(textProperties, node.data.name).width;  
+                    let textWidth = MeasureTextSize(this.textStyleProperties, node.data.name).width;  
                     if (node.children && node.children.length > 0 && level < this.maxExpandedDepth) {
                         node.children.forEach((element) => {
                             findMaxTextLength(level + 1, element);
@@ -264,7 +267,7 @@ export class D3Tree {
                 };
                 findMaxTextLength(0, this.hierarchyData);
 
-                let textHeight = MeasureTextSize(textProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
+                let textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
 
                 // if node shape size is greater than text height than use that for treeHeight calculation
                 let perNodeHeight: number = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
@@ -313,7 +316,7 @@ export class D3Tree {
         } else {
             // to set right margin for fixed height and width tree, we do following calculations.
             let fixedMarginForTree = 10;
-            let rootNodeTextSize = MeasureTextSize(textProperties, this.hierarchyData.data.name);
+            let rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
             if (generalProperties.orientation == Orientation.horizontal) {
                 let maxLeaveNodesTextWidth = 0;
                 let rootNodeWidth = 0;
@@ -326,7 +329,7 @@ export class D3Tree {
                 }
 
                 this.hierarchyData.leaves().forEach((node: TreePointNode<any>) => {
-                    let textWidth = MeasureTextSize(textProperties, node.data.name).width;
+                    let textWidth = MeasureTextSize(this.textStyleProperties, node.data.name).width;
                     maxLeaveNodesTextWidth = Math.max(textWidth, maxLeaveNodesTextWidth);
                 });
  
@@ -366,13 +369,13 @@ export class D3Tree {
         }
 
         if (generalProperties.isClusterLayout) {
-            this.tree =  cluster().size([treeHeight, treeWidth]);
+            this.treeLayout =  cluster().size([treeHeight, treeWidth]);
         } else {
-            this.tree =  tree().size([treeHeight, treeWidth]);
+            this.treeLayout =  tree().size([treeHeight, treeWidth]);
         }
 
         // get final data
-        this.treeNodes = this.tree(this.hierarchyData);
+        this.treeNodes = this.treeLayout(this.hierarchyData);
         this.treeNodeArray = this.treeNodes.descendants();
 
         // if orientation is horizontal than swap the x and y
@@ -515,6 +518,7 @@ export class D3Tree {
         let imageX = () => {
             let x: number = 0;
             let maxAllowedX:number = 0;
+            
             if (!this.treeProperties.nodeProperties.textProperties.showTextInsideShape) {
                 x = -nodeImageProperties.width / 2;
             } else if (nodeImageProperties.position == Position.left) {
@@ -531,14 +535,25 @@ export class D3Tree {
                     x = maxAllowedX;
                     // console.log('too much x offest not allowed');
                 }
-            }  
+            } else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                x = -nodeImageProperties.width / 2;
+            }
             return x;
         }
 
         let imageY = () => {
             let y: number;
+            let maxAllowedY:number = 0;
+            let textHeight: number = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
             if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
                 y = -nodeImageProperties.height / 2;
+            } else if (nodeImageProperties.position == Position.top) {
+                y = -this.nodeShapeHeight / 2 + nodeImageProperties.yOffset;
+                maxAllowedY = this.nodeShapeHeight / 2 + nodeImageProperties.height;
+                if (Math.abs(y) > maxAllowedY) {
+                    y = -maxAllowedY;
+                    // console.log('too much y offest not allowed');
+                }
             }
 
             return y;
@@ -593,15 +608,9 @@ export class D3Tree {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
-        let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
         let nodeImageProperties: TreeNodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
-        let textProperties: TextProperties = {
-            fontFamily: nodeTextProperties.fontFamily,
-            fontSize: nodeTextProperties.fontSize,
-            fontStyle: nodeTextProperties.fontStyle,
-            fontWeight: nodeTextProperties.fontWeight
-        };
         let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
+        let textHeight: number = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
 
         let nodeTextEnter = this.nodesEnter
             .append('g')
@@ -618,8 +627,7 @@ export class D3Tree {
                     .style('font-weight', nodeTextProperties.fontWeight)
                     .style('font-style', nodeTextProperties.fontStyle)
                     .text((node: TreePointNode<any>) => {
-                        textProperties.text = node.data.name;
-                        return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
+                        return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                     });
 
                 nodeTextGroup.append('title')
@@ -635,33 +643,32 @@ export class D3Tree {
                             let x: number = 0;
                             let y: number = 0;
                             if (nodeImageProperties.position == Position.left) {
+                                nodeText.style('text-anchor', 'start');
                                 x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                                y = 0;
                             } else if (nodeImageProperties.position == Position.right) {
+                                nodeText.style('text-anchor', 'start');
                                 x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding + nodeTextProperties.textPadding;
-                                y = 0;
+                            } else if (nodeImageProperties.position == Position.top) {
+                                nodeText.style('text-anchor', 'middle');
+                                y = nodeImageProperties.yOffset + nodeImageProperties.height / 2 + textHeight / 2;
                             }
                             return Translate(x, y);
                         }
 
                         let getTailoredTextBasedOnImage = (node: TreePointNode<any>) => {
                             let tailoredText = '';
-                            textProperties.text = node.data.name;
-                            if (nodeImageProperties.position == Position.left) {
+                            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
                                 tailoredText =  GetTailoredTextOrDefault(
-                                    textProperties,
-                                    this.nodeShapeWidth - nodeImageProperties.width + Math.abs(nodeImageProperties.xOffset) - nodeTextProperties.textPadding
+                                    this.textStyleProperties,
+                                    this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2,
+                                    node.data.name
                                 );
-                            } else if (nodeImageProperties.position == Position.right) {
-                                tailoredText =  GetTailoredTextOrDefault(
-                                    textProperties,
-                                    this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding
-                                );
+                            } else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom){
+                                tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                             }
                             return tailoredText;
                         }
-                        nodeText.style('text-anchor', 'start')
-                            .text(getTailoredTextBasedOnImage);
+                        nodeText.text(getTailoredTextBasedOnImage);
                         nodeTextGroup.attr('transform', textTransform);
                     } else {
                         nodeText.style('text-anchor', 'middle');
@@ -690,7 +697,8 @@ export class D3Tree {
                     });
                 }
 
-                if (nodeTextProperties.showBackground && !nodeTextProperties.showTextInsideShape) {
+                if (nodeTextProperties.showBackground) {
+                    let svgRect: SVGRect = (nodeText.node() as any).getBBox();
                     nodeTextGroup.insert('rect', 'text')
                         .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
                         .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
@@ -699,174 +707,7 @@ export class D3Tree {
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
                 
-
-                // select(elements[i]).attr('transform', Translate(10, 0));
-
-
-                // console.log(elements[i]);
-                
             });
-        
-        // nodeTextEnter.append('text')
-        //     .attr('fill', nodeTextProperties.foregroundColor)
-        //     .style('dominant-baseline', 'middle')
-        //     .style('font-size', nodeTextProperties.fontSize)
-        //     .style('font-family', nodeTextProperties.fontFamily)
-        //     .style('font-weight', nodeTextProperties.fontWeight)
-        //     .style('font-style', nodeTextProperties.fontStyle);
-
-        // if (generalProperties.orientation == TreeOrientation.vertical) {
-        //     this._createNodeTextForVerticalTree(nodeTextEnter);
-        // } else {
-        //     this._createNodeTextForHorizontalTree(nodeTextEnter);
-        // }
-
-
-        // if (nodeTextProperties.showBackground) {
-        //     this.nodesEnter.selectAll('g.nodeText')
-        //         .insert('rect', 'text')
-        //         .each((d, i, elements) => {
-        //             let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-        //             select(elements[i])
-        //                 .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-        //                 .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-        //                 .attr('height', svgRect.height + nodeTextProperties.textPadding)
-        //                 .attr('width', svgRect.width + nodeTextProperties.textPadding)
-        //                 .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-        //         });
-        // }
-    }
-
-    private _createNodeTextForHorizontalTree(nodeTextEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>) {
-
-        // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-
-
-        // nodeTextEnter.selectAll('text')
-        //     .attr('x', adjustXValue)
-        //     .style('text-anchor', (node: TreePointNode<any>) => {
-        //         let textAnchor = node.children ? 'end': 'start';
-        //         return textAnchor;
-        //     })
-        //     .text((node: any) => {
-        //         return node.data.name;
-        //     });
-
-        // this.nodes.select('g.nodeText').select('text')
-        //     .attr('x', adjustXValue);
-        
-        
-        // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
-        //     .data(this.treeDataArray)
-        //     .enter()
-        //     .append('g')
-        //     .attr('transform', (d:any) => {
-        //         let translate = d.children ? Translate(d.y - nodeShapeProperties.size - 8, d.x) :
-        //             Translate(d.y + nodeShapeProperties.size + 8, d.x);
-        //         return translate;
-        //     });
-
-        // nodeTexts.append('text')
-        //     .attr('fill', nodeTextProperties.foregroundColor)
-        //     .style('dominant-baseline', 'central')
-        //     .text((d: any) => {
-        //         return d.data.name;
-        //     });
-
-        // nodeTexts.style('text-anchor', (d: any, i, elements) => {
-        //         let textAnchor = d.children ? 'end': 'start';
-        //         return textAnchor;
-        //     });
-
-        // nodeTexts.append('title')
-        //     .text((d: any) => {
-        //         return d.data.name;
-        //     });
-
-        // if (nodeTextProperties.enableBackground) {
-        //     nodeTexts.insert('rect', 'text')
-        //     .each((d, i, elements) => {
-        //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-        //         select(elements[i])
-        //             .attr('x', svgRect.x - 2)
-        //             .attr('y', svgRect.y - 2)
-        //             .attr('height', svgRect.height + 4)
-        //             .attr('width', svgRect.width + 4)
-        //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-        //     });
-        // }
-    }
-
-    private _createNodeTextForVerticalTree(nodeTextEnter: Selection<BaseType, TreePointNode<any>, BaseType, any>) {
-
-        // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-
-        // let textProperties: TextProperties = {
-        //     'fontFamily': nodeTextProperties.fontFamily,
-        //     'fontSize': nodeTextProperties.fontSize
-        // };
-        
-        // let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - (nodeTextProperties.showBackground ? nodeTextProperties.textPadding * 2 : 0);
-        // nodeTextEnter.selectAll('text')
-        //     .attr('y', (node: TreePointNode<any>) => {
-        //         let totalSpacing = 0;
-        //         let backgroundSpacing = nodeTextProperties.showBackground ? nodeTextProperties.textPadding / 2: 0;
-        //         if (node.children) {
-        //             totalSpacing = -this.nodeShapeHeight - nodeTextProperties.spaceBetweenNodeAndText - backgroundSpacing;
-        //         } else {
-        //             totalSpacing = this.nodeShapeHeight + nodeTextProperties.spaceBetweenNodeAndText * 2 + backgroundSpacing;
-        //         }
-        //         return totalSpacing;
-        //     })
-        //     .style('text-anchor', 'middle')
-        //     .text((node: TreePointNode<any>) => {
-        //         textProperties.text = node.data.name;
-        //         return GetTailoredTextOrDefault(textProperties, maxAllowedTextwidth);
-        //     });
-
-        // let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeShapeProperties;
-        // let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeTextProperties;
-
-        // let nodeTexts = this.treeGroup.selectAll('text.nodeText')
-        //     .data(this.treeDataArray)
-        //     .enter()
-        //     .append('g')
-        //     .attr('transform', (d:any) => {
-        //         return Translate(d.x + nodeShapeProperties.size + 8, d.y)
-        //     });
-
-        // nodeTexts.append('text')
-        //     .attr('fill', nodeTextProperties.foregroundColor)
-        //     .style('dominant-baseline', 'central')
-        //     .text((d: any) => {
-        //         return d.data.name;
-        //     });
-
-        // nodeTexts.style('text-anchor', (d: any, i, elements) => {
-        //     let textWidth: number = (elements[i] as any).getBBox().width;
-        //     let textAnchor = (textWidth < nodeShapeProperties.size) ? 'middle' : 'start';
-        //     return textAnchor;
-        // });
-
-        // nodeTexts.append('title')
-        //     .text((d: any) => {
-        //         return d.data.name;
-        //     });
-
-        // if (nodeTextProperties.showBackground) {
-        //     nodeTexts.insert('rect', 'text')
-        //     .each((d, i, elements) => {
-        //         let svgRect: SVGRect = (elements[i] as any).parentNode.getBBox();
-        //         select(elements[i])
-        //             .attr('x', svgRect.x - 2)
-        //             .attr('y', svgRect.y - 2)
-        //             .attr('height', svgRect.height + 4)
-        //             .attr('width', svgRect.width + 4)
-        //             .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
-        //     });
-        // }
     }
 
     private _createNodeLinks() {
@@ -884,7 +725,7 @@ export class D3Tree {
 
         let straightLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +
-                "L" + target.x + "," + target.y;
+                   "L" + target.x + "," + target.y;
         }
 
         let nodePerpendicularLineLength: number = 0;
@@ -895,15 +736,15 @@ export class D3Tree {
         }
         let horizontalCornerLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +
-                "H" + (source.x + nodePerpendicularLineLength) +
-                "V" + target.y +
-                "H" + target.x;
+                   "H" + (source.x + nodePerpendicularLineLength) +
+                   "V" + target.y +
+                   "H" + target.x;
         }
         let verticalCornerLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +
-                "V" + (source.y + nodePerpendicularLineLength) +
-                "H" + target.x +
-                "V" + target.y;
+                   "V" + (source.y + nodePerpendicularLineLength) +
+                   "H" + target.x +
+                   "V" + target.y;
         }
 
         let createPath = (nodeLink: HierarchyPointLink<any>) => {
