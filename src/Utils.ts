@@ -102,6 +102,22 @@ export module SVGUtils {
 
         return text.substr(ellipsis.length, i - ellipsis.length) + ellipsis;
     }
+
+    /**
+     * Checks if given value is between given boundary(inclusive).
+     * @param value Actual value.
+     * @param maxPositive Maximum positive boundary.
+     * @param maxNegative Maximum negative boundary.
+     */
+    export function ValidateBoundary(value: number, maxPositive: number, maxNegative: number): number {
+        if (value <= maxPositive && value >= maxNegative) {
+            return value;
+        } else if (value > maxPositive) {
+            return maxPositive;
+        } else if (value < maxNegative) {
+            return maxNegative;
+        }
+    }
 }
 
 // https://github.com/Microsoft/powerbi-visuals-utils-formattingutils/blob/master/src/textMeasurementService.ts

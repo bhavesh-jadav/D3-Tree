@@ -16,10 +16,11 @@ import { max } from 'd3-array';
 import * as d3_ease from 'd3-ease';
 import 'd3-transition';
 
-//svgutils
+// svgutils
 let Translate = SVGUtils.Translate;
 let MeasureTextSize = SVGUtils.MeasureTextSize;
 let GetTailoredTextOrDefault = SVGUtils.GetTailoredTextOrDefault;
+let ValidateBoundries = SVGUtils.ValidateBoundary;
 
 export class D3Tree {
 
@@ -96,9 +97,9 @@ export class D3Tree {
             .classed('treeGroup', true);
 
         // calculate node size i.e. acutal height and width for spacing purpose.
-        if (nodeShapeProperties.shapeType == ShapeType.circle) {
+        if (nodeShapeProperties.shapeType == ShapeType.Circle) {
             this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.circleRadius;
-        } else if (nodeShapeProperties.shapeType == ShapeType.rect) {
+        } else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
             this.nodeShapeHeight = nodeShapeProperties.rectHeight;
             this.nodeShapeWidth = nodeShapeProperties.rectWidth;
         }
@@ -185,12 +186,8 @@ export class D3Tree {
         if (nodeTextProperties.showTextInsideShape == undefined) {
             nodeTextProperties.showTextInsideShape = false;
         }
-        if (nodeTextProperties.textPadding == undefined || !nodeTextProperties.showBackground) {
-            if (nodeTextProperties.showBackground || nodeTextProperties.showTextInsideShape) {
-                nodeTextProperties.textPadding = 4;
-            } else {
-                nodeTextProperties.textPadding = 0;
-            }
+        if (nodeTextProperties.textPadding == undefined) {
+            nodeTextProperties.textPadding = 0;
         }
         if (nodeTextProperties.takeColorsFromData == undefined) {
             nodeTextProperties.takeColorsFromData = false;
@@ -210,10 +207,10 @@ export class D3Tree {
             nodeImageProperties.strokeWidth = 0;
         }
         if (nodeImageProperties.shape == undefined) {
-            nodeImageProperties.shape = ShapeType.none;
+            nodeImageProperties.shape = ShapeType.None;
         }
         if (nodeImageProperties.position == undefined) {
-            nodeImageProperties.position = Position.left;
+            nodeImageProperties.position = Position.Left;
         }
         if (nodeImageProperties.xOffset == undefined) {
             nodeImageProperties.xOffset = 0;
@@ -249,7 +246,7 @@ export class D3Tree {
             // Find longest text width present in tree to calculate proper spacing between nodes.
             if (nodeTextProperties.showTextInsideShape) {
                 treeWidth = (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
-                if (generalProperties.orientation == Orientation.horizontal) {
+                if (generalProperties.orientation == Orientation.Horizontal) {
                     treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
                 } else {
                     treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
@@ -274,7 +271,7 @@ export class D3Tree {
                 let perNodeWidth: number = 0;
                 perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
                 treeWidth = (maxTextWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
-                if (generalProperties.orientation == Orientation.horizontal) {
+                if (generalProperties.orientation == Orientation.Horizontal) {
                     treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
                 } else {
                     treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
@@ -317,7 +314,7 @@ export class D3Tree {
             // to set right margin for fixed height and width tree, we do following calculations.
             let fixedMarginForTree = 10;
             let rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
-            if (generalProperties.orientation == Orientation.horizontal) {
+            if (generalProperties.orientation == Orientation.Horizontal) {
                 let maxLeaveNodesTextWidth = 0;
                 let rootNodeWidth = 0;
                 let fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
@@ -379,7 +376,7 @@ export class D3Tree {
         this.treeNodeArray = this.treeNodes.descendants();
 
         // if orientation is horizontal than swap the x and y
-        if (generalProperties.orientation == Orientation.horizontal) {
+        if (generalProperties.orientation == Orientation.Horizontal) {
             this.treeNodeArray.forEach((node) => {
                 node.x = node.x + node.y;
                 node.y = node.x - node.y;
@@ -475,10 +472,10 @@ export class D3Tree {
         }
 
         let nodeShape;
-        if (nodeShapeProperties.shapeType == ShapeType.circle) {
+        if (nodeShapeProperties.shapeType == ShapeType.Circle) {
             nodeShape = this.nodesEnter.append('circle')
                 .attr('r', nodeShapeProperties.circleRadius)
-        } else if (nodeShapeProperties.shapeType == ShapeType.rect) {
+        } else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
             nodeShape = this.nodesEnter.append('rect')
                 .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
                 .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
@@ -517,67 +514,58 @@ export class D3Tree {
 
         let imageX = () => {
             let x: number = 0;
-            let maxAllowedX:number = 0;
-            
+            let positiveX: number = this.nodeShapeWidth / 2;
+            let negativeX: number = -this.nodeShapeWidth / 2 - nodeImageProperties.width;
+
             if (!this.treeProperties.nodeProperties.textProperties.showTextInsideShape) {
                 x = -nodeImageProperties.width / 2;
-            } else if (nodeImageProperties.position == Position.left) {
+            } else if (nodeImageProperties.position == Position.Left) {
                 x = -this.nodeShapeWidth / 2 + nodeImageProperties.xOffset;
-                maxAllowedX = nodeImageProperties.width + this.nodeShapeWidth / 2;
-                if (Math.abs(x) > maxAllowedX) {
-                    x = -maxAllowedX;
-                    // console.log('too much x offest not allowed');
-                }
-            } else if (nodeImageProperties.position == Position.right) {
+                x = ValidateBoundries(x, positiveX, negativeX);
+            } else if (nodeImageProperties.position == Position.Right) {
                 x = this.nodeShapeWidth / 2 - nodeImageProperties.width + nodeImageProperties.xOffset;
-                maxAllowedX = this.nodeShapeWidth / 2;
-                if (Math.abs(x) > maxAllowedX) {
-                    x = maxAllowedX;
-                    // console.log('too much x offest not allowed');
-                }
-            } else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                x = ValidateBoundries(x, positiveX, negativeX);
+            } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
                 x = -nodeImageProperties.width / 2;
             }
             return x;
         }
 
         let imageY = () => {
-            let y: number;
-            let maxAllowedY:number = 0;
-            let textHeight: number = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
-            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
+            let y: number = 0;
+            let positiveY: number = this.nodeShapeHeight / 2;
+            let negativeY: number = -this.nodeShapeHeight / 2 - nodeImageProperties.height;
+            if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
                 y = -nodeImageProperties.height / 2;
-            } else if (nodeImageProperties.position == Position.top) {
-                y = -this.nodeShapeHeight / 2 + nodeImageProperties.yOffset;
-                maxAllowedY = this.nodeShapeHeight / 2 + nodeImageProperties.height;
-                if (Math.abs(y) > maxAllowedY) {
-                    y = -maxAllowedY;
-                    // console.log('too much y offest not allowed');
-                }
+            } else if (nodeImageProperties.position == Position.Top) {
+                y = -this.nodeShapeHeight / 2 - nodeImageProperties.yOffset;
+                y = ValidateBoundries(y, positiveY, negativeY);
+            } else if (nodeImageProperties.position == Position.Bottom) {
+                y = this.nodeShapeHeight / 2 - nodeImageProperties.height - nodeImageProperties.yOffset;
+                y = ValidateBoundries(y, positiveY, negativeY);
             }
-
             return y;
         }
 
-        if (nodeImageProperties.shape == ShapeType.circle) {
-            nodeImageEnter.append('circle')
-            .attr('r', () => {
-                return nodeImageProperties.height / 2;
-            })
-            .attr('fill', 'none')
-            .attr('stroke', nodeImageProperties.strokeColor)
-            .attr('stroke-width', nodeImageProperties.strokeWidth)
-            .attr('cx', imageX() + nodeImageProperties.width / 2)
-            .attr('cy', 0);
-        } else if (nodeImageProperties.shape == ShapeType.rect) {
-            nodeImageEnter.append('rect')
-            .attr('height', nodeImageProperties.height)
-            .attr('width', nodeImageProperties.width)
-            .attr('fill', 'none')
-            .attr('stroke', nodeImageProperties.strokeColor)
-            .attr('stroke-width', nodeImageProperties.strokeWidth)
-            .attr('x', imageX)
-            .attr('y', imageY);
+        if (nodeImageProperties.shape != ShapeType.None) {
+            let nodeImageShapeEnter;
+            if (nodeImageProperties.shape == ShapeType.Circle) {
+                nodeImageShapeEnter = nodeImageEnter.append('circle')
+                .attr('r', () => {
+                    return nodeImageProperties.height / 2;
+                })
+                .attr('cx', imageX() + nodeImageProperties.width / 2)
+                .attr('cy', 0);
+            } else if (nodeImageProperties.shape == ShapeType.Rectangle) {
+                nodeImageShapeEnter = nodeImageEnter.append('rect')
+                .attr('height', nodeImageProperties.height)
+                .attr('width', nodeImageProperties.width)
+                .attr('x', imageX)
+                .attr('y', imageY);
+            }
+            nodeImageShapeEnter.attr('stroke', nodeImageProperties.strokeColor)
+                .attr('stroke-width', nodeImageProperties.strokeWidth)
+                .attr('fill', 'none');
         }
 
         nodeImageEnter.append('image')
@@ -639,31 +627,50 @@ export class D3Tree {
 
                 if (nodeTextProperties.showTextInsideShape) {
                     if (nodeImageProperties.showImage) {
+
                         let textTransform = () => {
                             let x: number = 0;
                             let y: number = 0;
-                            if (nodeImageProperties.position == Position.left) {
+                            let maxAllowedY: number = 0;
+                            let positiveX: number = 0;
+                            let negativeX: number = 0;
+                            let positiveY: number = 0;
+                            let negativeY: number = 0;
+                            if (nodeImageProperties.position == Position.Left) {
                                 nodeText.style('text-anchor', 'start');
+                                positiveX = this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
+                                negativeX = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
                                 x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                            } else if (nodeImageProperties.position == Position.right) {
+                                x = ValidateBoundries(x, positiveX, negativeX); 
+                            } else if (nodeImageProperties.position == Position.Right) {
                                 nodeText.style('text-anchor', 'start');
-                                x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding + nodeTextProperties.textPadding;
-                            } else if (nodeImageProperties.position == Position.top) {
+                                x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
+                            } else if (nodeImageProperties.position == Position.Top) {
                                 nodeText.style('text-anchor', 'middle');
-                                y = nodeImageProperties.yOffset + nodeImageProperties.height / 2 + textHeight / 2;
+                                positiveY = this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
+                                negativeY = -this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
+                                y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                                y = ValidateBoundries(y, positiveY, negativeY);
+                            } else if (nodeImageProperties.position == Position.Bottom) {
+                                nodeText.style('text-anchor', 'middle');
+                                positiveY = this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
+                                negativeY = -this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
+                                y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                                console.log(y, positiveY, negativeY);
+                                y = ValidateBoundries(y, positiveY, negativeY);
                             }
                             return Translate(x, y);
                         }
 
                         let getTailoredTextBasedOnImage = (node: TreePointNode<any>) => {
                             let tailoredText = '';
-                            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
+                            if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
                                 tailoredText =  GetTailoredTextOrDefault(
                                     this.textStyleProperties,
-                                    this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2,
+                                    this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2,
                                     node.data.name
                                 );
-                            } else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom){
+                            } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom){
                                 tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                             }
                             return tailoredText;
@@ -674,7 +681,7 @@ export class D3Tree {
                         nodeText.style('text-anchor', 'middle');
                         nodeTextGroup.attr('transform', Translate(0, 0));
                     }
-                } else if (generalProperties.orientation == Orientation.horizontal) {
+                } else if (generalProperties.orientation == Orientation.Horizontal) {
                     nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
                         let x: number = 0;
                         let y: number = 0;
@@ -685,7 +692,7 @@ export class D3Tree {
                         }
                         return Translate(x, y);
                     });
-                } else if(generalProperties.orientation == Orientation.vertical) {
+                } else if(generalProperties.orientation == Orientation.Vertical) {
                     nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
                         let x = svgRect.width / 2;
                         let y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
@@ -729,7 +736,7 @@ export class D3Tree {
         }
 
         let nodePerpendicularLineLength: number = 0;
-        if (generalProperties.orientation == Orientation.horizontal) {
+        if (generalProperties.orientation == Orientation.Horizontal) {
             nodePerpendicularLineLength = this.nodeShapeWidth / 2 +(this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * 0.4;
         } else {
             nodePerpendicularLineLength = this.nodeShapeHeight /2 + (this.nodeShapeHeight + generalProperties.extraPerLevelDepth) * 0.4;
@@ -748,16 +755,16 @@ export class D3Tree {
         }
 
         let createPath = (nodeLink: HierarchyPointLink<any>) => {
-            if (treeLinkProperties.treeNodeLinkType == LineType.curved) {
-                if (generalProperties.orientation == Orientation.horizontal) {
+            if (treeLinkProperties.treeNodeLinkType == LineType.Curved) {
+                if (generalProperties.orientation == Orientation.Horizontal) {
                     return horizontalCurveLink(nodeLink as any);
                 } else {
                     return verticalCurveLink(nodeLink as any);
                 }
-            } else if (treeLinkProperties.treeNodeLinkType == LineType.straight) {
+            } else if (treeLinkProperties.treeNodeLinkType == LineType.Straight) {
                 return straightLink(nodeLink.source, nodeLink.target);
-            } else if (treeLinkProperties.treeNodeLinkType == LineType.corner) {
-                if (generalProperties.orientation == Orientation.horizontal) {
+            } else if (treeLinkProperties.treeNodeLinkType == LineType.Corner) {
+                if (generalProperties.orientation == Orientation.Horizontal) {
                     return horizontalCornerLink(nodeLink.source, nodeLink.target);
                 } else {
                     return verticalCornerLink(nodeLink.source, nodeLink.target);

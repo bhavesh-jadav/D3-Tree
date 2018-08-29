@@ -8,27 +8,27 @@
     //enums
     var ShapeType;
     (function (ShapeType) {
-        ShapeType["circle"] = "circle";
-        ShapeType["rect"] = "rect";
-        ShapeType["none"] = "none";
+        ShapeType["Circle"] = "circle";
+        ShapeType["Rectangle"] = "rectangle";
+        ShapeType["None"] = "none";
     })(ShapeType || (ShapeType = {}));
     var LineType;
     (function (LineType) {
-        LineType["straight"] = "straight";
-        LineType["curved"] = "curved";
-        LineType["corner"] = "corner";
+        LineType["Straight"] = "straight";
+        LineType["Curved"] = "curved";
+        LineType["Corner"] = "corner";
     })(LineType || (LineType = {}));
     var Orientation;
     (function (Orientation) {
-        Orientation["horizontal"] = "horizontal";
-        Orientation["vertical"] = "vertical";
+        Orientation["Horizontal"] = "horizontal";
+        Orientation["Vertical"] = "vertical";
     })(Orientation || (Orientation = {}));
     var Position;
     (function (Position) {
-        Position["left"] = "left";
-        Position["right"] = "right";
-        Position["top"] = "top";
-        Position["bottom"] = "bottom";
+        Position["Left"] = "left";
+        Position["Right"] = "right";
+        Position["Top"] = "top";
+        Position["Bottom"] = "bottom";
     })(Position || (Position = {}));
     //# sourceMappingURL=D3TreeInterfaces.js.map
 
@@ -642,6 +642,24 @@
             return text.substr(ellipsis.length, i - ellipsis.length) + ellipsis;
         }
         SVGUtils.GetTailoredTextOrDefault = GetTailoredTextOrDefault;
+        /**
+         * Checks if given value is between given boundry(inclusive).
+         * @param value Actual value.
+         * @param maxPositive Maximum positive boundry.
+         * @param maxNegative Maximum negative boundry.
+         */
+        function ValidateBoundry(value, maxPositive, maxNegative) {
+            if (value <= maxPositive && value >= maxNegative) {
+                return value;
+            }
+            else if (value > maxPositive) {
+                return maxPositive;
+            }
+            else if (value < maxNegative) {
+                return maxNegative;
+            }
+        }
+        SVGUtils.ValidateBoundry = ValidateBoundry;
     })(SVGUtils || (SVGUtils = {}));
     //# sourceMappingURL=Utils.js.map
 
@@ -4251,6 +4269,7 @@
     var Translate = SVGUtils.Translate;
     var MeasureTextSize = SVGUtils.MeasureTextSize;
     var GetTailoredTextOrDefault = SVGUtils.GetTailoredTextOrDefault;
+    var ValidateBoundries = SVGUtils.ValidateBoundry;
     var D3Tree = /** @class */ (function () {
         /**
          *
@@ -4304,10 +4323,10 @@
                 .append('g')
                 .classed('treeGroup', true);
             // calculate node size i.e. acutal height and width for spacing purpose.
-            if (nodeShapeProperties.shapeType == ShapeType.circle) {
+            if (nodeShapeProperties.shapeType == ShapeType.Circle) {
                 this.nodeShapeHeight = this.nodeShapeWidth = 2 * nodeShapeProperties.circleRadius;
             }
-            else if (nodeShapeProperties.shapeType == ShapeType.rect) {
+            else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
                 this.nodeShapeHeight = nodeShapeProperties.rectHeight;
                 this.nodeShapeWidth = nodeShapeProperties.rectWidth;
             }
@@ -4385,13 +4404,8 @@
             if (nodeTextProperties.showTextInsideShape == undefined) {
                 nodeTextProperties.showTextInsideShape = false;
             }
-            if (nodeTextProperties.textPadding == undefined || !nodeTextProperties.showBackground) {
-                if (nodeTextProperties.showBackground || nodeTextProperties.showTextInsideShape) {
-                    nodeTextProperties.textPadding = 4;
-                }
-                else {
-                    nodeTextProperties.textPadding = 0;
-                }
+            if (nodeTextProperties.textPadding == undefined) {
+                nodeTextProperties.textPadding = 0;
             }
             if (nodeTextProperties.takeColorsFromData == undefined) {
                 nodeTextProperties.takeColorsFromData = false;
@@ -4410,10 +4424,10 @@
                 nodeImageProperties.strokeWidth = 0;
             }
             if (nodeImageProperties.shape == undefined) {
-                nodeImageProperties.shape = ShapeType.none;
+                nodeImageProperties.shape = ShapeType.None;
             }
             if (nodeImageProperties.position == undefined) {
-                nodeImageProperties.position = Position.left;
+                nodeImageProperties.position = Position.Left;
             }
             if (nodeImageProperties.xOffset == undefined) {
                 nodeImageProperties.xOffset = 0;
@@ -4444,7 +4458,7 @@
                 // Find longest text width present in tree to calculate proper spacing between nodes.
                 if (nodeTextProperties.showTextInsideShape) {
                     treeWidth = (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
-                    if (generalProperties.orientation == Orientation.horizontal) {
+                    if (generalProperties.orientation == Orientation.Horizontal) {
                         treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
                     }
                     else {
@@ -4469,7 +4483,7 @@
                     var perNodeWidth = 0;
                     perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
                     treeWidth = (maxTextWidth_1 + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
-                    if (generalProperties.orientation == Orientation.horizontal) {
+                    if (generalProperties.orientation == Orientation.Horizontal) {
                         treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
                     }
                     else {
@@ -4509,7 +4523,7 @@
                 // to set right margin for fixed height and width tree, we do following calculations.
                 var fixedMarginForTree = 10;
                 var rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
-                if (generalProperties.orientation == Orientation.horizontal) {
+                if (generalProperties.orientation == Orientation.Horizontal) {
                     var maxLeaveNodesTextWidth_1 = 0;
                     var rootNodeWidth = 0;
                     var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
@@ -4567,7 +4581,7 @@
             this.treeNodes = this.treeLayout(this.hierarchyData);
             this.treeNodeArray = this.treeNodes.descendants();
             // if orientation is horizontal than swap the x and y
-            if (generalProperties.orientation == Orientation.horizontal) {
+            if (generalProperties.orientation == Orientation.Horizontal) {
                 this.treeNodeArray.forEach(function (node) {
                     node.x = node.x + node.y;
                     node.y = node.x - node.y;
@@ -4653,11 +4667,11 @@
                 }
             };
             var nodeShape;
-            if (nodeShapeProperties.shapeType == ShapeType.circle) {
+            if (nodeShapeProperties.shapeType == ShapeType.Circle) {
                 nodeShape = this.nodesEnter.append('circle')
                     .attr('r', nodeShapeProperties.circleRadius);
             }
-            else if (nodeShapeProperties.shapeType == ShapeType.rect) {
+            else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
                 nodeShape = this.nodesEnter.append('rect')
                     .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
                     .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
@@ -4691,68 +4705,61 @@
                 .classed('node-image', true);
             var imageX = function () {
                 var x = 0;
-                var maxAllowedX = 0;
+                var positiveX = _this.nodeShapeWidth / 2;
+                var negativeX = -_this.nodeShapeWidth / 2 - nodeImageProperties.width;
                 if (!_this.treeProperties.nodeProperties.textProperties.showTextInsideShape) {
                     x = -nodeImageProperties.width / 2;
                 }
-                else if (nodeImageProperties.position == Position.left) {
+                else if (nodeImageProperties.position == Position.Left) {
                     x = -_this.nodeShapeWidth / 2 + nodeImageProperties.xOffset;
-                    maxAllowedX = nodeImageProperties.width + _this.nodeShapeWidth / 2;
-                    if (Math.abs(x) > maxAllowedX) {
-                        x = -maxAllowedX;
-                        // console.log('too much x offest not allowed');
-                    }
+                    x = ValidateBoundries(x, positiveX, negativeX);
                 }
-                else if (nodeImageProperties.position == Position.right) {
+                else if (nodeImageProperties.position == Position.Right) {
                     x = _this.nodeShapeWidth / 2 - nodeImageProperties.width + nodeImageProperties.xOffset;
-                    maxAllowedX = _this.nodeShapeWidth / 2;
-                    if (Math.abs(x) > maxAllowedX) {
-                        x = maxAllowedX;
-                        // console.log('too much x offest not allowed');
-                    }
+                    x = ValidateBoundries(x, positiveX, negativeX);
                 }
-                else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
                     x = -nodeImageProperties.width / 2;
                 }
                 return x;
             };
             var imageY = function () {
-                var y;
-                var maxAllowedY = 0;
-                var textHeight = MeasureTextSize(_this.textStyleProperties, _this.treeNodes.data.name).height;
-                if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
+                var y = 0;
+                var positiveY = _this.nodeShapeHeight / 2;
+                var negativeY = -_this.nodeShapeHeight / 2 - nodeImageProperties.height;
+                if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
                     y = -nodeImageProperties.height / 2;
                 }
-                else if (nodeImageProperties.position == Position.top) {
-                    y = -_this.nodeShapeHeight / 2 + nodeImageProperties.yOffset;
-                    maxAllowedY = _this.nodeShapeHeight / 2 + nodeImageProperties.height;
-                    if (Math.abs(y) > maxAllowedY) {
-                        y = -maxAllowedY;
-                        // console.log('too much y offest not allowed');
-                    }
+                else if (nodeImageProperties.position == Position.Top) {
+                    y = -_this.nodeShapeHeight / 2 - nodeImageProperties.yOffset;
+                    y = ValidateBoundries(y, positiveY, negativeY);
+                }
+                else if (nodeImageProperties.position == Position.Bottom) {
+                    y = _this.nodeShapeHeight / 2 - nodeImageProperties.height - nodeImageProperties.yOffset;
+                    y = ValidateBoundries(y, positiveY, negativeY);
                 }
                 return y;
             };
-            if (nodeImageProperties.shape == ShapeType.circle) {
-                nodeImageEnter.append('circle')
-                    .attr('r', function () {
-                    return nodeImageProperties.height / 2;
-                })
-                    .attr('fill', 'none')
-                    .attr('stroke', nodeImageProperties.strokeColor)
+            if (nodeImageProperties.shape != ShapeType.None) {
+                var nodeImageShapeEnter = void 0;
+                if (nodeImageProperties.shape == ShapeType.Circle) {
+                    nodeImageShapeEnter = nodeImageEnter.append('circle')
+                        .attr('r', function () {
+                        return nodeImageProperties.height / 2;
+                    })
+                        .attr('cx', imageX() + nodeImageProperties.width / 2)
+                        .attr('cy', 0);
+                }
+                else if (nodeImageProperties.shape == ShapeType.Rectangle) {
+                    nodeImageShapeEnter = nodeImageEnter.append('rect')
+                        .attr('height', nodeImageProperties.height)
+                        .attr('width', nodeImageProperties.width)
+                        .attr('x', imageX)
+                        .attr('y', imageY);
+                }
+                nodeImageShapeEnter.attr('stroke', nodeImageProperties.strokeColor)
                     .attr('stroke-width', nodeImageProperties.strokeWidth)
-                    .attr('cx', imageX() + nodeImageProperties.width / 2)
-                    .attr('cy', 0);
-            }
-            else if (nodeImageProperties.shape == ShapeType.rect) {
-                nodeImageEnter.append('rect')
-                    .attr('height', nodeImageProperties.height)
-                    .attr('width', nodeImageProperties.width)
-                    .attr('fill', 'none')
-                    .attr('stroke', nodeImageProperties.strokeColor)
-                    .attr('stroke-width', nodeImageProperties.strokeWidth)
-                    .attr('x', imageX)
-                    .attr('y', imageY);
+                    .attr('fill', 'none');
             }
             nodeImageEnter.append('image')
                 .attr('xlink:href', function (node) {
@@ -4809,26 +4816,44 @@
                         var textTransform = function () {
                             var x = 0;
                             var y = 0;
-                            if (nodeImageProperties.position == Position.left) {
+                            var positiveX = 0;
+                            var negativeX = 0;
+                            var positiveY = 0;
+                            var negativeY = 0;
+                            if (nodeImageProperties.position == Position.Left) {
                                 nodeText.style('text-anchor', 'start');
+                                positiveX = _this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
+                                negativeX = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
                                 x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
+                                x = ValidateBoundries(x, positiveX, negativeX);
                             }
-                            else if (nodeImageProperties.position == Position.right) {
+                            else if (nodeImageProperties.position == Position.Right) {
                                 nodeText.style('text-anchor', 'start');
-                                x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding + nodeTextProperties.textPadding;
+                                x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
                             }
-                            else if (nodeImageProperties.position == Position.top) {
+                            else if (nodeImageProperties.position == Position.Top) {
                                 nodeText.style('text-anchor', 'middle');
-                                y = nodeImageProperties.yOffset + nodeImageProperties.height / 2 + textHeight / 2;
+                                positiveY = _this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
+                                negativeY = -_this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
+                                y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                                y = ValidateBoundries(y, positiveY, negativeY);
+                            }
+                            else if (nodeImageProperties.position == Position.Bottom) {
+                                nodeText.style('text-anchor', 'middle');
+                                positiveY = _this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
+                                negativeY = -_this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
+                                y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                                console.log(y, positiveY, negativeY);
+                                y = ValidateBoundries(y, positiveY, negativeY);
                             }
                             return Translate(x, y);
                         };
                         var getTailoredTextBasedOnImage = function (node) {
                             var tailoredText = '';
-                            if (nodeImageProperties.position == Position.left || nodeImageProperties.position == Position.right) {
-                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width - nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
+                            if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
+                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
                             }
-                            else if (nodeImageProperties.position == Position.top || nodeImageProperties.position == Position.bottom) {
+                            else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
                                 tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
                             }
                             return tailoredText;
@@ -4841,7 +4866,7 @@
                         nodeTextGroup.attr('transform', Translate(0, 0));
                     }
                 }
-                else if (generalProperties.orientation == Orientation.horizontal) {
+                else if (generalProperties.orientation == Orientation.Horizontal) {
                     nodeTextGroup.attr('transform', function (node) {
                         var x = 0;
                         var y = 0;
@@ -4854,7 +4879,7 @@
                         return Translate(x, y);
                     });
                 }
-                else if (generalProperties.orientation == Orientation.vertical) {
+                else if (generalProperties.orientation == Orientation.Vertical) {
                     nodeTextGroup.attr('transform', function (node) {
                         var x = svgRect.width / 2;
                         var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
@@ -4892,7 +4917,7 @@
                     "L" + target.x + "," + target.y;
             };
             var nodePerpendicularLineLength = 0;
-            if (generalProperties.orientation == Orientation.horizontal) {
+            if (generalProperties.orientation == Orientation.Horizontal) {
                 nodePerpendicularLineLength = this.nodeShapeWidth / 2 + (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * 0.4;
             }
             else {
@@ -4911,19 +4936,19 @@
                     "V" + target.y;
             };
             var createPath = function (nodeLink) {
-                if (treeLinkProperties.treeNodeLinkType == LineType.curved) {
-                    if (generalProperties.orientation == Orientation.horizontal) {
+                if (treeLinkProperties.treeNodeLinkType == LineType.Curved) {
+                    if (generalProperties.orientation == Orientation.Horizontal) {
                         return horizontalCurveLink(nodeLink);
                     }
                     else {
                         return verticalCurveLink(nodeLink);
                     }
                 }
-                else if (treeLinkProperties.treeNodeLinkType == LineType.straight) {
+                else if (treeLinkProperties.treeNodeLinkType == LineType.Straight) {
                     return straightLink(nodeLink.source, nodeLink.target);
                 }
-                else if (treeLinkProperties.treeNodeLinkType == LineType.corner) {
-                    if (generalProperties.orientation == Orientation.horizontal) {
+                else if (treeLinkProperties.treeNodeLinkType == LineType.Corner) {
+                    if (generalProperties.orientation == Orientation.Horizontal) {
                         return horizontalCornerLink(nodeLink.source, nodeLink.target);
                     }
                     else {
@@ -4987,6 +5012,7 @@
         };
         return D3Tree;
     }());
+    //# sourceMappingURL=D3Tree.js.map
 
     var data2 = {
         "name": "flare",
@@ -5376,29 +5402,29 @@
         .style('width', width + 'px')
         .style('background-color', '#F2F2F2');
     var treeGeneralProperties = {
-        orientation: Orientation.horizontal,
-        defaultMaxDepth: 1,
+        orientation: Orientation.Horizontal,
+        defaultMaxDepth: 0,
         isClusterLayout: false,
         containerHeight: height,
         containerWidth: width,
         enableZoom: true,
         minZoomScale: 0.2,
         maxZoomScale: 3,
-        extraPerLevelDepth: 50,
+        extraPerLevelDepth: 100,
         extraSpaceBetweenNodes: 60
     };
     var treeNodeShapeProperties = {
-        shapeType: ShapeType.rect,
+        shapeType: ShapeType.Rectangle,
         circleRadius: 25,
         rectWidth: 100,
-        rectHeight: 140,
+        rectHeight: 70,
         expandedNodeColor: 'red',
         collapsedNodeColor: 'green',
         strokeColor: 'black',
         strokeWidth: 2
     };
     var treeLinkProperties = {
-        treeNodeLinkType: LineType.corner,
+        treeNodeLinkType: LineType.Corner,
         strokeColor: '#ccc',
         strokeWidth: 5,
         animation: true
@@ -5420,10 +5446,10 @@
         width: 80,
         strokeColor: 'black',
         strokeWidth: 3,
-        shape: ShapeType.none,
-        xOffset: 10,
+        shape: ShapeType.None,
+        xOffset: 50,
         yOffset: 0,
-        position: Position.top
+        position: Position.Right
     };
     var treeNodeProperties = {
         shapeProperties: treeNodeShapeProperties,
@@ -5437,19 +5463,7 @@
         linkProperties: treeLinkProperties
     };
     var d3Tree = new D3Tree(rootSVG, data2, treeProperties);
-    // get tree data, create tree data and place tree node in html
     d3Tree.CreateTree();
-    // //add node shapes
-    // d3Tree.CreateNodeShape(treeNodeShapeProperties);
-    // // //adjusting height and width
-    // // rootSVG.attr('height', height + (nodeShapeProperties.size * 2))
-    // //     .attr('width', width + (nodeShapeProperties.size * 2))
-    // //     .select('.treeGroup')
-    // //     .attr('transform', `translate(${nodeShapeProperties.size}, ${nodeShapeProperties.size})`)
-    // //adding node links
-    // d3Tree.CreateNodeLinks(treeNodeLinkProperties, treeGeneralProperties);
-    // //adding node texts
-    // d3Tree.CreateNodeText(treeGeneralProperties, treeNodeShapeProperties, treeNodeTextProperties);
     //# sourceMappingURL=app.js.map
 
 })));

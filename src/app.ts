@@ -412,23 +412,23 @@ let rootSVG = select('body')
     .style('background-color', '#F2F2F2');
 
 let treeGeneralProperties: TreeGeneralProperties = {
-    orientation: Orientation.horizontal,
-    defaultMaxDepth: 1, // n - 1 depth
+    orientation: Orientation.Horizontal,
+    defaultMaxDepth: 0, // n - 1 depth
     isClusterLayout: false,
     containerHeight: height,
     containerWidth: width,
     enableZoom: true,
     minZoomScale: 0.2,
     maxZoomScale: 3,
-    extraPerLevelDepth: 50,
+    extraPerLevelDepth: 100,
     extraSpaceBetweenNodes: 60
 }
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
-    shapeType: ShapeType.rect,
+    shapeType: ShapeType.Rectangle,
     circleRadius: 25,
     rectWidth: 100,
-    rectHeight: 140,
+    rectHeight: 70,
     expandedNodeColor: 'red',
     collapsedNodeColor: 'green',
     strokeColor: 'black',
@@ -436,7 +436,7 @@ let treeNodeShapeProperties: TreeNodeShapeProperties = {
 }
 
 let treeLinkProperties: TreeLinkProperties = {
-    treeNodeLinkType: LineType.corner,
+    treeNodeLinkType: LineType.Corner,
     strokeColor: '#ccc',
     strokeWidth: 5,
     animation: true
@@ -460,10 +460,10 @@ let treeNodeImageProperties: TreeNodeImageProperties = {
     width:80,
     strokeColor: 'black',
     strokeWidth: 3,
-    shape: ShapeType.none,
-    xOffset: 10,
+    shape: ShapeType.None,
+    xOffset: 50,
     yOffset: 0,
-    position: Position.top
+    position: Position.Right
 }
 
 let treeNodeProperties: TreeNodeProperties = {
@@ -481,28 +481,7 @@ let treeProperties: TreeProperties = {
 
 let d3Tree = new D3Tree(rootSVG, data2, treeProperties);
 
-// get tree data, create tree data and place tree node in html
 
 d3Tree.CreateTree();
 
-// //add node shapes
-
-// d3Tree.CreateNodeShape(treeNodeShapeProperties);
-
-// // //adjusting height and width
-// // rootSVG.attr('height', height + (nodeShapeProperties.size * 2))
-// //     .attr('width', width + (nodeShapeProperties.size * 2))
-// //     .select('.treeGroup')
-// //     .attr('transform', `translate(${nodeShapeProperties.size}, ${nodeShapeProperties.size})`)
-
-// //adding node links
-
-
-// d3Tree.CreateNodeLinks(treeNodeLinkProperties, treeGeneralProperties);
-
-// //adding node texts
-
-
-
-// d3Tree.CreateNodeText(treeGeneralProperties, treeNodeShapeProperties, treeNodeTextProperties);
 

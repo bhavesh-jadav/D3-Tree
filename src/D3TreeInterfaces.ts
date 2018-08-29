@@ -8,11 +8,14 @@ import { HierarchyPointNode, HierarchyNode } from 'd3-hierarchy';
  */
 export interface TreePointNode<Datum> extends HierarchyPointNode<Datum>, OptionalTreeData {
     /**
-     * Stores collpased nodes.
+     * Stores collapsed nodes.
      */
     _children?: HierarchyNode<Datum>[] | null;
 }
 
+/**
+ * Interface for format of tree data
+ */
 export interface TreeData extends OptionalTreeData {
     /**
      * Name of the node.
@@ -27,45 +30,60 @@ export interface TreeData extends OptionalTreeData {
 
 export interface OptionalTreeData {
     /**
-     * Show image on the node and expand and collpase color will be applied
+     * (optional) Show image on the node and expand and collapse color will be applied
      * on stroke of the image if only image is visible on node.
      */
     imageURL?: string | null;
     /**
-     * Optional text url that will be used to add hyperlink to node text.
+     * (optional) Text url that will be used to add hyperlink to node text.
      */
     externalURL?: string | null;
     /**
-     * Weight of the node. Can be used to sort the nodes.
+     * (optional) Weight of the node. Can be used to sort the nodes.
      */
     weight?: number | null;
     /**
-     * Node Color.
+     * (optional) Node Color. Can be used to add different color to individual node.
      */
     nodeColor?: string | null;
     /**
-     * Node text color.
+     * (optional) Node text color.
      */
     nodeTextColor?: string | null;
 }
 
 export interface TreeGeneralProperties {
     /**
-     * Either vertical or horizontal orientation.
+     * Specify Orientation for tree. It can be either horizontal or vertical.
+     * @property {Orientation=} orientation
      */
     orientation: Orientation,
+    /**
+     * Specify maximum depth and till this depth tree will be expanded by default.
+     */
     defaultMaxDepth: number,
+    /**
+     * Specify height of SVG element which will be parent of tree.
+     */
     containerHeight: number,
+    /**
+     * Specify width of SVG element which will be parent of tree.
+     */
     containerWidth: number,
+    /**
+     * Enable zooming functionality for large trees. If zooming is enable then tree height and width 
+     * will be calculated dynamically otherwise container height and width will be 
+     */
     enableZoom: boolean,
     /**
-     * If `enableZoom` is true then use this property to specify MINIMUM ZOOM that is allowed on tree.
+     * (optional) If `enableZoom` is true then use this property to specify MINIMUM ZOOM that is allowed on tree.
      * To find possible for value for your tree, expand all your node in tree by setting `defaultMaxDepth`
      * in `TreeGeneralProperties` and lower this value until full tree is visible.
+     * @default 0.2
      */
     minZoomScale?: number,
     /**
-     * If `enableZoom` is true then use this property to specify MAXZIMUM ZOOM that is allowed on tree.
+     * (optional) If `enableZoom` is true then use this property to specify MAXIMUM ZOOM that is allowed on tree. 
      */
     maxZoomScale?: number,
     isClusterLayout?: boolean,
@@ -170,25 +188,25 @@ export interface TreeProperties {
 
 //enums
 export enum ShapeType {
-    circle = 'circle',
-    rect = 'rect',
-    none = 'none'
+    Circle = 'circle',
+    Rectangle = 'rectangle',
+    None = 'none'
 }
 
 export enum LineType {
-    straight = 'straight',
-    curved = 'curved',
-    corner = 'corner'
+    Straight = 'straight',
+    Curved = 'curved',
+    Corner = 'corner'
 }
 
 export enum Orientation {
-    horizontal = 'horizontal',
-    vertical = 'vertical'
+    Horizontal = 'horizontal',
+    Vertical = 'vertical'
 }
 
 export enum Position {
-    left = 'left',
-    right = 'right',
-    top = 'top',
-    bottom = 'bottom'
+    Left = 'left',
+    Right = 'right',
+    Top = 'top',
+    Bottom = 'bottom'
 }
