@@ -31,7 +31,6 @@ export class D3Tree {
     private treeNodeArray: TreePointNode<any>[]; // Holds nodes in form of array in chronological order from top to bottom.
     private treeDataLinks: HierarchyPointLink<any>[]; // Holds definition of links between nodes.
     private enableZoom: boolean = false; // enable zoom when there is no treeheight and width is provided.
-    private maxExpandedDepth: number; // will store max depth of tree visible on screen
     private rootSVGZoomListener: ZoomBehavior<Element, {}>;
     private nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
     private textStyleProperties: TextStyleProperties;
@@ -69,9 +68,6 @@ export class D3Tree {
             fontStyle: nodeTextProperties.fontStyle,
             fontWeight: nodeTextProperties.fontWeight
         }
-
-        // set maxExpandedDepth to defaultMaxDepth
-        this.maxExpandedDepth = generalProperties.defaultMaxDepth;
 
         // Generate hierarchy data which gives depth, height and other info.
         this.hierarchyData = hierarchy(this.data, (treeDatum: TreeData) => {
@@ -154,7 +150,7 @@ export class D3Tree {
             generalProperties.minZoomScale = 3;
         }
         if (generalProperties.extraSpaceBetweenNodes == undefined) {
-            generalProperties.extraSpaceBetweenNodes = 0;
+            generalProperties.extraSpaceBetweenNodes = 10;
         }
 
         // node properties
@@ -163,8 +159,17 @@ export class D3Tree {
         }
 
         // node shape properties
-        if (nodeShapeProperties.takeColorsFromData == undefined) {
-            nodeShapeProperties.takeColorsFromData = false;
+        if (nodeShapeProperties.takeColorFromData == undefined) {
+            nodeShapeProperties.takeColorFromData = false;
+        }
+        if (nodeShapeProperties.circleRadius == undefined) {
+            nodeShapeProperties.circleRadius = 10;
+        }
+        if (nodeShapeProperties.rectWidth == undefined) {
+            nodeShapeProperties.rectWidth = 5;
+        }
+        if (nodeShapeProperties.rectHeight == undefined) {
+            nodeShapeProperties.rectHeight = 5;
         }
 
         // node text properties
@@ -191,6 +196,9 @@ export class D3Tree {
         }
         if (nodeTextProperties.takeColorsFromData == undefined) {
             nodeTextProperties.takeColorsFromData = false;
+        }
+        if (nodeTextProperties.showUrlOnText == undefined) {
+            nodeTextProperties.showUrlOnText = false;
         }
 
         // node image properties
@@ -357,7 +365,9 @@ export class D3Tree {
         this.treeNodeArray = this.treeNodes.descendants();
 
         this.treeNodeArray.forEach((node) => {
-            node.y = node.depth * generalProperties.depthWiseHeight;
+            if (generalProperties.enableZoom) {
+                node.y = node.depth * generalProperties.depthWiseHeight;
+            }
             // if orientation is horizontal than swap the x and y
             if (generalProperties.orientation == Orientation.Horizontal) {
                 node.x = node.x + node.y;
@@ -390,7 +400,7 @@ export class D3Tree {
             });
 
         // animation will be applicable for whole node i.e. shape, text, image etc.
-        if (nodeProperties.animation) {
+        if (nodeProperties.enableAnimation) {
             this.nodesEnter.attr('opacity', 0)
                 .transition()
                 .duration(nodeProperties.animationDuration)
@@ -407,7 +417,7 @@ export class D3Tree {
             .transition()
             .duration(nodeProperties.animationDuration)
             .attr('fill', (node: TreePointNode<any>) => {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
                 });
 
             this.nodes.exit()
@@ -426,7 +436,7 @@ export class D3Tree {
 
             this.nodes.select('.node-shape')
                 .attr('fill', (node: TreePointNode<any>) => {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
                 });
 
             this.nodes.exit().remove();
@@ -435,17 +445,13 @@ export class D3Tree {
 
     private _createNodeShapes() {
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
-        let click = (node: any) => {
+        let click = (node: TreePointNode<any>) => {
             if (node.children) { // collapse
                 node._children = node.children;
                 node.children = null;
             } else if(node._children) {  // expand
                 node.children = node._children;
                 node._children = null;
-            }
-            if (this.enableZoom) {
-                // finding maximum expanded depth for dynamic height calculation.
-                this.maxExpandedDepth = max(this.hierarchyData.leaves().map((node) => { return node.depth }));
             }
             this._updateTree();
             if (this.enableZoom) {
@@ -467,9 +473,19 @@ export class D3Tree {
 
         nodeShape.classed('node-shape', true)
             .attr('fill', (node: TreePointNode<any>) => {
-                return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                    return node.nodeColor;
+                } else {
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+                }
             })
-            .attr('stroke', nodeShapeProperties.strokeColor)
+            .attr('stroke', (node: TreePointNode<any>) => {
+                if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+                } else {
+                    return nodeShapeProperties.strokeColor;
+                }
+            })
             .attr('stroke-width', nodeShapeProperties.strokeWidth);
 
         this.nodesEnter.on('click', click)
@@ -579,7 +595,7 @@ export class D3Tree {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
         let nodeImageProperties: TreeNodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
-        let maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
+        let maxAllowedTextWidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
         let textHeight: number = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
 
         let nodeTextEnter = this.nodesEnter
@@ -588,16 +604,42 @@ export class D3Tree {
             .each((node: TreePointNode<any>, i: number, elements: Element[]) => {
 
                 let nodeTextGroup = select(elements[i]);
+                let nodeText;
                 
-                let nodeText = nodeTextGroup.append('text')
-                    .attr('fill', nodeTextProperties.foregroundColor)
+                // let nodeText = nodeTextGroup.append('text')
+                //     .attr('fill', nodeTextProperties.foregroundColor)
+                //     .style('dominant-baseline', 'middle')
+                //     .style('font-size', nodeTextProperties.fontSize)
+                //     .style('font-family', nodeTextProperties.fontFamily)
+                //     .style('font-weight', nodeTextProperties.fontWeight)
+                //     .style('font-style', nodeTextProperties.fontStyle)
+                //     .text((node: TreePointNode<any>) => {
+                //         return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
+                //     });
+
+                if (nodeTextProperties.showUrlOnText) {
+                    nodeText = nodeTextGroup.each((node: TreePointNode<any>, i: number, elements: Element[]) => {
+                            if (node.externalURL) {
+                                select(elements[i]).append('a')
+                                    .attr('xlink:href', (node: TreePointNode<any>) => {
+                                        if (node.externalURL) {
+                                            return node.externalURL
+                                        }
+                                    })
+                                    .attr('target', 'blank')
+                                    .style('text-decoration', 'underline')
+                            }
+                        })
+                }
+                nodeText = nodeText.append('text')
+                nodeText.attr('fill', nodeTextProperties.foregroundColor)
                     .style('dominant-baseline', 'middle')
                     .style('font-size', nodeTextProperties.fontSize)
                     .style('font-family', nodeTextProperties.fontFamily)
                     .style('font-weight', nodeTextProperties.fontWeight)
                     .style('font-style', nodeTextProperties.fontStyle)
                     .text((node: TreePointNode<any>) => {
-                        return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                        return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                     });
 
                 nodeTextGroup.append('title')
@@ -653,7 +695,7 @@ export class D3Tree {
                                     node.data.name
                                 );
                             } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom){
-                                tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                                tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                             }
                             return tailoredText;
                         }
@@ -695,7 +737,6 @@ export class D3Tree {
                         .attr('width', svgRect.width + nodeTextProperties.textPadding)
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
-                
             });
     }
 
@@ -719,9 +760,9 @@ export class D3Tree {
 
         let nodePerpendicularLineLength: number = 0;
         if (generalProperties.orientation == Orientation.Horizontal) {
-            nodePerpendicularLineLength = this.nodeShapeWidth / 2 +(this.nodeShapeWidth + generalProperties.depthWiseHeight) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeWidth / 2 + generalProperties.depthWiseHeight * 0.25;
         } else {
-            nodePerpendicularLineLength = this.nodeShapeHeight /2 + (this.nodeShapeHeight + generalProperties.depthWiseHeight) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeHeight /2 + generalProperties.depthWiseHeight * 0.25;
         }
         let horizontalCornerLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +
@@ -758,9 +799,9 @@ export class D3Tree {
             .data(this.treeDataLinks, (nodeLink: HierarchyPointLink<any>) => {
                 return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
             });
-            
+
         let nodeLinksEnter = nodeLinks.enter()
-            .insert("path", "g")   //will insert path before g elements
+            .insert("path", "g")   // will insert path before g elements
             .classed('link', true)
             .attr('fill', 'none')
             .attr('stroke', treeLinkProperties.strokeColor)
@@ -773,7 +814,7 @@ export class D3Tree {
             });
 
 
-        if (treeLinkProperties.animation) {
+        if (treeLinkProperties.enableAnimation) {
             nodeLinksEnter.each((nodeLink: HierarchyPointLink<any>, i: number, elements: Element[]) => {
                 let linkLength = (elements[i] as any).getTotalLength();
                 select(elements[i])

@@ -9,7 +9,7 @@ export interface TreePointNode<Datum> extends HierarchyPointNode<Datum>, Optiona
     /**
      * Stores collapsed nodes.
      */
-    _children?: HierarchyNode<Datum>[] | null;
+    _children?: TreePointNode<Datum>[] | null;
 }
 
 /**
@@ -34,7 +34,7 @@ export interface OptionalTreeData {
      */
     imageURL?: string | null;
     /**
-     * Text url that will be used to add hyperlink to node text.
+     * External url that will be used to add hyperlink to node text.
      */
     externalURL?: string | null;
     /**
@@ -75,47 +75,93 @@ export interface TreeGeneralProperties {
      */
     enableZoom: boolean,
     /**
-     * (optional) If `enableZoom` is true then use this property to specify MINIMUM ZOOM that is allowed on tree.
+     * If `enableZoom` is true then use this property to specify MINIMUM ZOOM that is allowed on tree.
      * To find possible for value for your tree, expand all your node in tree by setting `defaultMaxDepth`
      * in `TreeGeneralProperties` and lower this value until full tree is visible.
-     * @default 0.2
      */
     minZoomScale?: number,
     /**
      * If `enableZoom` is true then use this property to specify MAXIMUM ZOOM that is allowed on tree.
-     * @default 3
      */
     maxZoomScale?: number,
     /**
      * If `true` then will show tree as cluster layout where all children will be at the same level.
-     * @default false
      */
     isClusterLayout?: boolean,
-    depthWiseHeight?: number,
+    /**
+     * Specify the height between depths or levels of the tree in pixels.
+     * Only applicable when `enableZoom` is true.
+     */
+    depthWiseHeight: number,
+    /**
+     * Specify extra space between nodes. When nodes seems to be too close or far away,
+     * you can change this value to get appropriate distance between node.
+     */
     extraSpaceBetweenNodes?: number,
 }
 
 export interface TreeNodeShapeProperties {
+    /**
+     * Specify shape type such as circle, rectangle etc.
+     */
     shapeType: ShapeType,
-    expandedNodeColor: string,
-    collapsedNodeColor: string,
+    /**
+     * This color will be visible on node when the node is expanded or node does not have any children.
+     * In case of `takeColorFromData` is `true` then this will be applied to stroke of shape rather than fill.
+     */
+    expandedColor: string,
+    /**
+     * This color will be visible when node is collapsed.
+     * In case of `takeColorFromData` is `true` then this will be applied to stroke of shape rather than fill.
+     */
+    collapsedColor: string,
+    /**
+     * Stroke color of node shape.
+     */
     strokeColor: string,
+    /**
+     * Stroke width of node shape.
+     */
     strokeWidth: number,
+    /**
+     * If shape type is circle then specify radius for it.
+     */
     circleRadius?: number,
+    /**
+     * If shape type is rectangle then specify width of rectangle.
+     */
     rectWidth?: number,
+    /**
+     * If shape type is rectangle then specify height of rectangle.
+     */
     rectHeight?: number,
     /**
      * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
      * default colors specified in properties.
      */
-    takeColorsFromData?: boolean;
+    takeColorFromData?: boolean;
 }
 
 export interface TreeLinkProperties {
+    /**
+     * Link type can be straight, curved etc.
+     */
     treeNodeLinkType: LineType
+    /**
+     * Color of the link.
+     */
     strokeColor: string,
+    /**
+     * Width of the link.
+     */
     strokeWidth: number,
-    animation: boolean,
+    /**
+     * Enable or disable animation.
+     */
+    enableAnimation: boolean,
+    /**
+     * If animation is enable then specify duration of animation.
+     */
     animationDuration?: number
     /**
      * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
@@ -125,25 +171,45 @@ export interface TreeLinkProperties {
 }
 
 export interface TreeNodeTextProperties {
+    /**
+     * Font family of text.
+     */
     fontFamily: string,
+    /**
+     * Font size of text. e,g. '20px'.
+     */
     fontSize: string,
+    /**
+     * Color of text.
+     */
     foregroundColor: string,
+    /**
+     * Weight of font. e.g. 'bold'
+     */
     fontWeight?: string,
+    /**
+     * Style of font. e.g. 'italic'
+     */
     fontStyle?: string,
+    /**
+     * Enable this to show background to text.
+     */
     showBackground?: boolean,
+    /**
+     * Specify background color. Only visible when `showBackground` is enable.
+     */
     backgroundColor?: string,
+    /**
+     * Maximum allowed width in pixels of the text. Any text with width greater this value
+     * will be truncated.
+     */
     maxAllowedWidth?: number,
+    /**
+     * Specify space between node and text. Used when text is displayed outside the node shape.
+     */
     spaceBetweenNodeAndText?: number
     /**
-     * Use textPadding when showBackground is true. It will set padding between text and it's background in px.
-     * This propeties is only used when text is shown outside the node shape.
-     * 
-     * Defalut Values:
-     * 
-     * `showBackground` : `false` then 0.
-     * 
-     * `showBackground` : `true` and no `textPadding` is specified than 4.
-     * 
+     * Specify text padding.
      */
     textPadding?: number,
     /**
@@ -155,6 +221,10 @@ export interface TreeNodeTextProperties {
      * default colors specified in properties.
      */
     takeColorsFromData?: boolean
+    /**
+     * Shows hyperlink on text. Url for hyperlink is fetched from data itself.
+     */
+    showUrlOnText?: boolean
 }
 
 export interface TreeNodeImageProperties {
@@ -166,13 +236,37 @@ export interface TreeNodeImageProperties {
      * If there is no image for the node than we show this image.
      */
     defaultImageURL?: string;
+    /**
+     * Height of the image.
+     */
     height?: number,
+    /**
+     * Width of the image.
+     */
     width?: number,
+    /**
+     * Stroke color of the image.
+     */
     strokeColor?: string,
+    /**
+     * Stroke width of the image.
+     */
     strokeWidth?: number,
+    /**
+     * Shape of the image. e.g. circle, rectangle etc.
+     */
     shape?: ShapeType,
+    /**
+     * Position of image respect to node i.e. either left, right, top or bottom.
+     */
     position?: Position
+    /**
+     * Offset image on X axis. Value is in pixels
+     */
     xOffset?: number,
+    /**
+     * Offset image on Y axis. Value is in pixels
+     */
     yOffset?: number
 }
 
@@ -180,7 +274,13 @@ export interface TreeNodeProperties {
     shapeProperties: TreeNodeShapeProperties,
     textProperties: TreeNodeTextProperties,
     imageProperties: TreeNodeImageProperties,
-    animation: boolean,
+    /**
+     * Enable or disable animation for node.
+     */
+    enableAnimation: boolean,
+    /**
+     * If animation is enabled then specify the duration.
+     */
     animationDuration?: number
 }
 
@@ -200,7 +300,8 @@ export enum ShapeType {
 export enum LineType {
     Straight = 'straight',
     Curved = 'curved',
-    Corner = 'corner'
+    Corner = 'corner',
+    None = 'none'
 }
 
 export enum Orientation {

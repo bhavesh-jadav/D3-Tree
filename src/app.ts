@@ -417,10 +417,10 @@ let treeGeneralProperties: TreeGeneralProperties = {
     isClusterLayout: false,
     containerHeight: height,
     containerWidth: width,
-    enableZoom: true,
+    enableZoom: false,
     minZoomScale: 0.2,
     maxZoomScale: 3,
-    depthWiseHeight: 300,
+    depthWiseHeight: 200,
     extraSpaceBetweenNodes: 20
 }
 
@@ -429,17 +429,18 @@ let treeNodeShapeProperties: TreeNodeShapeProperties = {
     circleRadius: 25,
     rectWidth: 100,
     rectHeight: 70,
-    expandedNodeColor: 'red',
-    collapsedNodeColor: 'green',
+    expandedColor: 'red',
+    collapsedColor: 'green',
     strokeColor: 'black',
-    strokeWidth: 2
+    strokeWidth: 2,
+    takeColorFromData: false
 }
 
 let treeLinkProperties: TreeLinkProperties = {
     treeNodeLinkType: LineType.Curved,
     strokeColor: '#ccc',
     strokeWidth: 5,
-    animation: true
+    enableAnimation: true
 }
 
 let treeNodeTextProperties: TreeNodeTextProperties = {
@@ -451,7 +452,8 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
     maxAllowedWidth: 100,
     textPadding: 5,
     spaceBetweenNodeAndText: 10,
-    showTextInsideShape: true
+    showTextInsideShape: true,
+    showUrlOnText: true
 }
 
 let treeNodeImageProperties: TreeNodeImageProperties = {
@@ -470,7 +472,7 @@ let treeNodeProperties: TreeNodeProperties = {
     shapeProperties: treeNodeShapeProperties,
     textProperties: treeNodeTextProperties,
     imageProperties: treeNodeImageProperties,
-    animation: true
+    enableAnimation: true
 }
 
 let treeProperties: TreeProperties = {
@@ -479,7 +481,7 @@ let treeProperties: TreeProperties = {
     linkProperties: treeLinkProperties
 }
 
-let d3Tree = new D3Tree(rootSVG, data2, treeProperties);
+let d3Tree = new D3Tree(rootSVG, data1, treeProperties);
 
 
 d3Tree.CreateTree();

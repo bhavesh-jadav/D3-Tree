@@ -4,7 +4,6 @@ import { SVGUtils } from './Utils';
 import { linkHorizontal, linkVertical } from 'd3-shape';
 import { select, event } from 'd3-selection';
 import { zoom, zoomIdentity, zoomTransform } from 'd3-zoom';
-import { max } from 'd3-array';
 import 'd3-transition';
 // SVG Utils
 var Translate = SVGUtils.Translate;
@@ -41,8 +40,6 @@ var D3Tree = /** @class */ (function () {
             fontStyle: nodeTextProperties.fontStyle,
             fontWeight: nodeTextProperties.fontWeight
         };
-        // set maxExpandedDepth to defaultMaxDepth
-        this.maxExpandedDepth = generalProperties.defaultMaxDepth;
         // Generate hierarchy data which gives depth, height and other info.
         this.hierarchyData = hierarchy(this.data, function (treeDatum) {
             return treeDatum.children;
@@ -116,15 +113,24 @@ var D3Tree = /** @class */ (function () {
             generalProperties.minZoomScale = 3;
         }
         if (generalProperties.extraSpaceBetweenNodes == undefined) {
-            generalProperties.extraSpaceBetweenNodes = 0;
+            generalProperties.extraSpaceBetweenNodes = 10;
         }
         // node properties
         if (nodeProperties.animationDuration == undefined) {
             nodeProperties.animationDuration = 1000;
         }
         // node shape properties
-        if (nodeShapeProperties.takeColorsFromData == undefined) {
-            nodeShapeProperties.takeColorsFromData = false;
+        if (nodeShapeProperties.takeColorFromData == undefined) {
+            nodeShapeProperties.takeColorFromData = false;
+        }
+        if (nodeShapeProperties.circleRadius == undefined) {
+            nodeShapeProperties.circleRadius = 10;
+        }
+        if (nodeShapeProperties.rectWidth == undefined) {
+            nodeShapeProperties.rectWidth = 5;
+        }
+        if (nodeShapeProperties.rectHeight == undefined) {
+            nodeShapeProperties.rectHeight = 5;
         }
         // node text properties
         if (nodeTextProperties.backgroundColor == undefined) {
@@ -150,6 +156,9 @@ var D3Tree = /** @class */ (function () {
         }
         if (nodeTextProperties.takeColorsFromData == undefined) {
             nodeTextProperties.takeColorsFromData = false;
+        }
+        if (nodeTextProperties.showUrlOnText == undefined) {
+            nodeTextProperties.showUrlOnText = false;
         }
         // node image properties
         if (nodeImageProperties.defaultImageURL == undefined) {
@@ -305,7 +314,9 @@ var D3Tree = /** @class */ (function () {
         this.treeNodes = this.treeLayout(this.hierarchyData);
         this.treeNodeArray = this.treeNodes.descendants();
         this.treeNodeArray.forEach(function (node) {
-            node.y = node.depth * generalProperties.depthWiseHeight;
+            if (generalProperties.enableZoom) {
+                node.y = node.depth * generalProperties.depthWiseHeight;
+            }
             // if orientation is horizontal than swap the x and y
             if (generalProperties.orientation == Orientation.Horizontal) {
                 node.x = node.x + node.y;
@@ -333,7 +344,7 @@ var D3Tree = /** @class */ (function () {
             return Translate(node.x, node.y);
         });
         // animation will be applicable for whole node i.e. shape, text, image etc.
-        if (nodeProperties.animation) {
+        if (nodeProperties.enableAnimation) {
             this.nodesEnter.attr('opacity', 0)
                 .transition()
                 .duration(nodeProperties.animationDuration)
@@ -348,7 +359,7 @@ var D3Tree = /** @class */ (function () {
                 .transition()
                 .duration(nodeProperties.animationDuration)
                 .attr('fill', function (node) {
-                return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
             });
             this.nodes.exit()
                 .attr('opacity', 1)
@@ -365,7 +376,7 @@ var D3Tree = /** @class */ (function () {
             });
             this.nodes.select('.node-shape')
                 .attr('fill', function (node) {
-                return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
             });
             this.nodes.exit().remove();
         }
@@ -381,10 +392,6 @@ var D3Tree = /** @class */ (function () {
             else if (node._children) { // expand
                 node.children = node._children;
                 node._children = null;
-            }
-            if (_this.enableZoom) {
-                // finding maximum expanded depth for dynamic height calculation.
-                _this.maxExpandedDepth = max(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
             }
             _this._updateTree();
             if (_this.enableZoom) {
@@ -405,9 +412,21 @@ var D3Tree = /** @class */ (function () {
         }
         nodeShape.classed('node-shape', true)
             .attr('fill', function (node) {
-            return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+            if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                return node.nodeColor;
+            }
+            else {
+                return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+            }
         })
-            .attr('stroke', nodeShapeProperties.strokeColor)
+            .attr('stroke', function (node) {
+            if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+            }
+            else {
+                return nodeShapeProperties.strokeColor;
+            }
+        })
             .attr('stroke-width', nodeShapeProperties.strokeWidth);
         this.nodesEnter.on('click', click)
             .on('mouseover', function (node, i, elements) {
@@ -514,22 +533,47 @@ var D3Tree = /** @class */ (function () {
         var generalProperties = this.treeProperties.generalProperties;
         var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
         var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
-        var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
+        var maxAllowedTextWidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
         var textHeight = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
         var nodeTextEnter = this.nodesEnter
             .append('g')
             .classed('nodeText', true)
             .each(function (node, i, elements) {
             var nodeTextGroup = select(elements[i]);
-            var nodeText = nodeTextGroup.append('text')
-                .attr('fill', nodeTextProperties.foregroundColor)
+            var nodeText;
+            // let nodeText = nodeTextGroup.append('text')
+            //     .attr('fill', nodeTextProperties.foregroundColor)
+            //     .style('dominant-baseline', 'middle')
+            //     .style('font-size', nodeTextProperties.fontSize)
+            //     .style('font-family', nodeTextProperties.fontFamily)
+            //     .style('font-weight', nodeTextProperties.fontWeight)
+            //     .style('font-style', nodeTextProperties.fontStyle)
+            //     .text((node: TreePointNode<any>) => {
+            //         return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
+            //     });
+            if (nodeTextProperties.showUrlOnText) {
+                nodeText = nodeTextGroup.each(function (node, i, elements) {
+                    if (node.externalURL) {
+                        select(elements[i]).append('a')
+                            .attr('xlink:href', function (node) {
+                            if (node.externalURL) {
+                                return node.externalURL;
+                            }
+                        })
+                            .attr('target', 'blank')
+                            .style('text-decoration', 'underline');
+                    }
+                });
+            }
+            nodeText = nodeText.append('text');
+            nodeText.attr('fill', nodeTextProperties.foregroundColor)
                 .style('dominant-baseline', 'middle')
                 .style('font-size', nodeTextProperties.fontSize)
                 .style('font-family', nodeTextProperties.fontFamily)
                 .style('font-weight', nodeTextProperties.fontWeight)
                 .style('font-style', nodeTextProperties.fontStyle)
                 .text(function (node) {
-                return GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                return GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
             });
             nodeTextGroup.append('title')
                 .text(function (node) {
@@ -580,7 +624,7 @@ var D3Tree = /** @class */ (function () {
                             tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
                         }
                         else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
-                            tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                            tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                         }
                         return tailoredText;
                     };
@@ -644,10 +688,10 @@ var D3Tree = /** @class */ (function () {
         };
         var nodePerpendicularLineLength = 0;
         if (generalProperties.orientation == Orientation.Horizontal) {
-            nodePerpendicularLineLength = this.nodeShapeWidth / 2 + (this.nodeShapeWidth + generalProperties.depthWiseHeight) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeWidth / 2 + generalProperties.depthWiseHeight * 0.25;
         }
         else {
-            nodePerpendicularLineLength = this.nodeShapeHeight / 2 + (this.nodeShapeHeight + generalProperties.depthWiseHeight) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeHeight / 2 + generalProperties.depthWiseHeight * 0.25;
         }
         var horizontalCornerLink = function (source, target) {
             return "M" + source.x + "," + source.y +
@@ -687,7 +731,7 @@ var D3Tree = /** @class */ (function () {
             return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
         });
         var nodeLinksEnter = nodeLinks.enter()
-            .insert("path", "g") //will insert path before g elements
+            .insert("path", "g") // will insert path before g elements
             .classed('link', true)
             .attr('fill', 'none')
             .attr('stroke', treeLinkProperties.strokeColor)
@@ -697,7 +741,7 @@ var D3Tree = /** @class */ (function () {
             .text(function (nodeLink) {
             return nodeLink.source.data.name + " -> " + nodeLink.target.data.name;
         });
-        if (treeLinkProperties.animation) {
+        if (treeLinkProperties.enableAnimation) {
             nodeLinksEnter.each(function (nodeLink, i, elements) {
                 var linkLength = elements[i].getTotalLength();
                 select(elements[i])

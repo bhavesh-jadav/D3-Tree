@@ -16,6 +16,7 @@
         LineType["Straight"] = "straight";
         LineType["Curved"] = "curved";
         LineType["Corner"] = "corner";
+        LineType["None"] = "none";
     })(LineType || (LineType = {}));
     var Orientation;
     (function (Orientation) {
@@ -4191,79 +4192,6 @@
       return zoom;
     }
 
-    function ascending$2(a, b) {
-      return a < b ? -1 : a > b ? 1 : a >= b ? 0 : NaN;
-    }
-
-    function bisector(compare) {
-      if (compare.length === 1) compare = ascendingComparator(compare);
-      return {
-        left: function(a, x, lo, hi) {
-          if (lo == null) lo = 0;
-          if (hi == null) hi = a.length;
-          while (lo < hi) {
-            var mid = lo + hi >>> 1;
-            if (compare(a[mid], x) < 0) lo = mid + 1;
-            else hi = mid;
-          }
-          return lo;
-        },
-        right: function(a, x, lo, hi) {
-          if (lo == null) lo = 0;
-          if (hi == null) hi = a.length;
-          while (lo < hi) {
-            var mid = lo + hi >>> 1;
-            if (compare(a[mid], x) > 0) hi = mid;
-            else lo = mid + 1;
-          }
-          return lo;
-        }
-      };
-    }
-
-    function ascendingComparator(f) {
-      return function(d, x) {
-        return ascending$2(f(d), x);
-      };
-    }
-
-    var ascendingBisect = bisector(ascending$2);
-
-    function max$1(values, valueof) {
-      var n = values.length,
-          i = -1,
-          value,
-          max;
-
-      if (valueof == null) {
-        while (++i < n) { // Find the first comparable value.
-          if ((value = values[i]) != null && value >= value) {
-            max = value;
-            while (++i < n) { // Compare the remaining values.
-              if ((value = values[i]) != null && value > max) {
-                max = value;
-              }
-            }
-          }
-        }
-      }
-
-      else {
-        while (++i < n) { // Find the first comparable value.
-          if ((value = valueof(values[i], i, values)) != null && value >= value) {
-            max = value;
-            while (++i < n) { // Compare the remaining values.
-              if ((value = valueof(values[i], i, values)) != null && value > max) {
-                max = value;
-              }
-            }
-          }
-        }
-      }
-
-      return max;
-    }
-
     // SVG Utils
     var Translate = SVGUtils.Translate;
     var MeasureTextSize = SVGUtils.MeasureTextSize;
@@ -4299,8 +4227,6 @@
                 fontStyle: nodeTextProperties.fontStyle,
                 fontWeight: nodeTextProperties.fontWeight
             };
-            // set maxExpandedDepth to defaultMaxDepth
-            this.maxExpandedDepth = generalProperties.defaultMaxDepth;
             // Generate hierarchy data which gives depth, height and other info.
             this.hierarchyData = hierarchy(this.data, function (treeDatum) {
                 return treeDatum.children;
@@ -4374,15 +4300,24 @@
                 generalProperties.minZoomScale = 3;
             }
             if (generalProperties.extraSpaceBetweenNodes == undefined) {
-                generalProperties.extraSpaceBetweenNodes = 0;
+                generalProperties.extraSpaceBetweenNodes = 10;
             }
             // node properties
             if (nodeProperties.animationDuration == undefined) {
                 nodeProperties.animationDuration = 1000;
             }
             // node shape properties
-            if (nodeShapeProperties.takeColorsFromData == undefined) {
-                nodeShapeProperties.takeColorsFromData = false;
+            if (nodeShapeProperties.takeColorFromData == undefined) {
+                nodeShapeProperties.takeColorFromData = false;
+            }
+            if (nodeShapeProperties.circleRadius == undefined) {
+                nodeShapeProperties.circleRadius = 10;
+            }
+            if (nodeShapeProperties.rectWidth == undefined) {
+                nodeShapeProperties.rectWidth = 5;
+            }
+            if (nodeShapeProperties.rectHeight == undefined) {
+                nodeShapeProperties.rectHeight = 5;
             }
             // node text properties
             if (nodeTextProperties.backgroundColor == undefined) {
@@ -4408,6 +4343,9 @@
             }
             if (nodeTextProperties.takeColorsFromData == undefined) {
                 nodeTextProperties.takeColorsFromData = false;
+            }
+            if (nodeTextProperties.showUrlOnText == undefined) {
+                nodeTextProperties.showUrlOnText = false;
             }
             // node image properties
             if (nodeImageProperties.defaultImageURL == undefined) {
@@ -4563,7 +4501,9 @@
             this.treeNodes = this.treeLayout(this.hierarchyData);
             this.treeNodeArray = this.treeNodes.descendants();
             this.treeNodeArray.forEach(function (node) {
-                node.y = node.depth * generalProperties.depthWiseHeight;
+                if (generalProperties.enableZoom) {
+                    node.y = node.depth * generalProperties.depthWiseHeight;
+                }
                 // if orientation is horizontal than swap the x and y
                 if (generalProperties.orientation == Orientation.Horizontal) {
                     node.x = node.x + node.y;
@@ -4591,7 +4531,7 @@
                 return Translate(node.x, node.y);
             });
             // animation will be applicable for whole node i.e. shape, text, image etc.
-            if (nodeProperties.animation) {
+            if (nodeProperties.enableAnimation) {
                 this.nodesEnter.attr('opacity', 0)
                     .transition()
                     .duration(nodeProperties.animationDuration)
@@ -4606,7 +4546,7 @@
                     .transition()
                     .duration(nodeProperties.animationDuration)
                     .attr('fill', function (node) {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
                 });
                 this.nodes.exit()
                     .attr('opacity', 1)
@@ -4623,7 +4563,7 @@
                 });
                 this.nodes.select('.node-shape')
                     .attr('fill', function (node) {
-                    return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
                 });
                 this.nodes.exit().remove();
             }
@@ -4639,10 +4579,6 @@
                 else if (node._children) { // expand
                     node.children = node._children;
                     node._children = null;
-                }
-                if (_this.enableZoom) {
-                    // finding maximum expanded depth for dynamic height calculation.
-                    _this.maxExpandedDepth = max$1(_this.hierarchyData.leaves().map(function (node) { return node.depth; }));
                 }
                 _this._updateTree();
                 if (_this.enableZoom) {
@@ -4663,9 +4599,21 @@
             }
             nodeShape.classed('node-shape', true)
                 .attr('fill', function (node) {
-                return node._children ? nodeShapeProperties.collapsedNodeColor : nodeShapeProperties.expandedNodeColor;
+                if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                    return node.nodeColor;
+                }
+                else {
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+                }
             })
-                .attr('stroke', nodeShapeProperties.strokeColor)
+                .attr('stroke', function (node) {
+                if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
+                    return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
+                }
+                else {
+                    return nodeShapeProperties.strokeColor;
+                }
+            })
                 .attr('stroke-width', nodeShapeProperties.strokeWidth);
             this.nodesEnter.on('click', click)
                 .on('mouseover', function (node, i, elements) {
@@ -4772,22 +4720,47 @@
             var generalProperties = this.treeProperties.generalProperties;
             var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
             var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
-            var maxAllowedTextwidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
+            var maxAllowedTextWidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
             var textHeight = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
             var nodeTextEnter = this.nodesEnter
                 .append('g')
                 .classed('nodeText', true)
                 .each(function (node, i, elements) {
                 var nodeTextGroup = select(elements[i]);
-                var nodeText = nodeTextGroup.append('text')
-                    .attr('fill', nodeTextProperties.foregroundColor)
+                var nodeText;
+                // let nodeText = nodeTextGroup.append('text')
+                //     .attr('fill', nodeTextProperties.foregroundColor)
+                //     .style('dominant-baseline', 'middle')
+                //     .style('font-size', nodeTextProperties.fontSize)
+                //     .style('font-family', nodeTextProperties.fontFamily)
+                //     .style('font-weight', nodeTextProperties.fontWeight)
+                //     .style('font-style', nodeTextProperties.fontStyle)
+                //     .text((node: TreePointNode<any>) => {
+                //         return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
+                //     });
+                if (nodeTextProperties.showUrlOnText) {
+                    nodeText = nodeTextGroup.each(function (node, i, elements) {
+                        if (node.externalURL) {
+                            select(elements[i]).append('a')
+                                .attr('xlink:href', function (node) {
+                                if (node.externalURL) {
+                                    return node.externalURL;
+                                }
+                            })
+                                .attr('target', 'blank')
+                                .style('text-decoration', 'underline');
+                        }
+                    });
+                }
+                nodeText = nodeText.append('text');
+                nodeText.attr('fill', nodeTextProperties.foregroundColor)
                     .style('dominant-baseline', 'middle')
                     .style('font-size', nodeTextProperties.fontSize)
                     .style('font-family', nodeTextProperties.fontFamily)
                     .style('font-weight', nodeTextProperties.fontWeight)
                     .style('font-style', nodeTextProperties.fontStyle)
                     .text(function (node) {
-                    return GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                    return GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                 });
                 nodeTextGroup.append('title')
                     .text(function (node) {
@@ -4837,7 +4810,7 @@
                                 tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
                             }
                             else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
-                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextwidth, node.data.name);
+                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                             }
                             return tailoredText;
                         };
@@ -4901,10 +4874,10 @@
             };
             var nodePerpendicularLineLength = 0;
             if (generalProperties.orientation == Orientation.Horizontal) {
-                nodePerpendicularLineLength = this.nodeShapeWidth / 2 + (this.nodeShapeWidth + generalProperties.depthWiseHeight) * 0.4;
+                nodePerpendicularLineLength = this.nodeShapeWidth / 2 + generalProperties.depthWiseHeight * 0.25;
             }
             else {
-                nodePerpendicularLineLength = this.nodeShapeHeight / 2 + (this.nodeShapeHeight + generalProperties.depthWiseHeight) * 0.4;
+                nodePerpendicularLineLength = this.nodeShapeHeight / 2 + generalProperties.depthWiseHeight * 0.25;
             }
             var horizontalCornerLink = function (source, target) {
                 return "M" + source.x + "," + source.y +
@@ -4944,7 +4917,7 @@
                 return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
             });
             var nodeLinksEnter = nodeLinks.enter()
-                .insert("path", "g") //will insert path before g elements
+                .insert("path", "g") // will insert path before g elements
                 .classed('link', true)
                 .attr('fill', 'none')
                 .attr('stroke', treeLinkProperties.strokeColor)
@@ -4954,7 +4927,7 @@
                 .text(function (nodeLink) {
                 return nodeLink.source.data.name + " -> " + nodeLink.target.data.name;
             });
-            if (treeLinkProperties.animation) {
+            if (treeLinkProperties.enableAnimation) {
                 nodeLinksEnter.each(function (nodeLink, i, elements) {
                     var linkLength = elements[i].getTotalLength();
                     select(elements[i])
@@ -4995,385 +4968,19 @@
         };
         return D3Tree;
     }());
+    //# sourceMappingURL=D3Tree.js.map
 
-    var data2 = {
-        "name": "flare",
+    var data1 = {
+        "name": "Top Level",
         "children": [
             {
-                "name": "analytics",
+                "name": "Level 2: A",
                 "children": [
-                    {
-                        "name": "cluster",
-                        "children": [
-                            { "name": "AgglomerativeCluster", "weight": 3938 },
-                            { "name": "CommunityStructure", "weight": 3812 },
-                            { "name": "HierarchicalCluster", "weight": 6714 },
-                            { "name": "MergeEdge", "weight": 743 }
-                        ]
-                    },
-                    {
-                        "name": "graph",
-                        "children": [
-                            { "name": "BetweennessCentrality", "weight": 3534 },
-                            { "name": "LinkDistance", "weight": 5731 },
-                            { "name": "MaxFlowMinCut", "weight": 7840 },
-                            { "name": "ShortestPaths", "weight": 5914 },
-                            { "name": "SpanningTree", "weight": 3416 }
-                        ]
-                    },
-                    {
-                        "name": "optimization",
-                        "children": [
-                            { "name": "AspectRatioBanker", "weight": 7074 }
-                        ]
-                    }
+                    { "name": "Son of A" },
+                    { "name": "Daughter of A" }
                 ]
             },
-            {
-                "name": "animate",
-                "children": [
-                    { "name": "Easing", "weight": 17010 },
-                    { "name": "FunctionSequence", "weight": 5842 },
-                    {
-                        "name": "interpolate",
-                        "children": [
-                            { "name": "ArrayInterpolator", "weight": 1983 },
-                            { "name": "ColorInterpolator", "weight": 2047 },
-                            { "name": "DateInterpolator", "weight": 1375 },
-                            { "name": "Interpolator", "weight": 8746 },
-                            { "name": "MatrixInterpolator", "weight": 2202 },
-                            { "name": "NumberInterpolator", "weight": 1382 },
-                            { "name": "ObjectInterpolator", "weight": 1629 },
-                            { "name": "PointInterpolator", "weight": 1675 },
-                            { "name": "RectangleInterpolator", "weight": 2042 }
-                        ]
-                    },
-                    { "name": "ISchedulable", "weight": 1041 },
-                    { "name": "Parallel", "weight": 5176 },
-                    { "name": "Pause", "weight": 449 },
-                    { "name": "Scheduler", "weight": 5593 },
-                    { "name": "Sequence", "weight": 5534 },
-                    { "name": "Transition", "weight": 9201 },
-                    { "name": "Transitioner", "weight": 19975 },
-                    { "name": "TransitionEvent", "weight": 1116 },
-                    { "name": "Tween", "weight": 6006 }
-                ]
-            },
-            {
-                "name": "data",
-                "children": [
-                    {
-                        "name": "converters",
-                        "children": [
-                            { "name": "Converters", "weight": 721 },
-                            { "name": "DelimitedTextConverter", "weight": 4294 },
-                            { "name": "GraphMLConverter", "weight": 9800 },
-                            { "name": "IDataConverter", "weight": 1314 },
-                            { "name": "JSONConverter", "weight": 2220 }
-                        ]
-                    },
-                    { "name": "DataField", "weight": 1759 },
-                    { "name": "DataSchema", "weight": 2165 },
-                    { "name": "DataSet", "weight": 586 },
-                    { "name": "DataSource", "weight": 3331 },
-                    { "name": "DataTable", "weight": 772 },
-                    { "name": "DataUtil", "weight": 3322 }
-                ]
-            },
-            {
-                "name": "display",
-                "children": [
-                    { "name": "DirtySprite", "weight": 8833 },
-                    { "name": "LineSprite", "weight": 1732 },
-                    { "name": "RectSprite", "weight": 3623 },
-                    { "name": "TextSprite", "weight": 10066 }
-                ]
-            },
-            {
-                "name": "flex",
-                "children": [
-                    { "name": "FlareVis", "weight": 4116 }
-                ]
-            },
-            {
-                "name": "physics",
-                "children": [
-                    { "name": "DragForce", "weight": 1082 },
-                    { "name": "GravityForce", "weight": 1336 },
-                    { "name": "IForce", "weight": 319 },
-                    { "name": "NBodyForce", "weight": 10498 },
-                    { "name": "Particle", "weight": 2822 },
-                    { "name": "Simulation", "weight": 9983 },
-                    { "name": "Spring", "weight": 2213 },
-                    { "name": "SpringForce", "weight": 1681 }
-                ]
-            },
-            {
-                "name": "query",
-                "children": [
-                    { "name": "AggregateExpression", "weight": 1616 },
-                    { "name": "And", "weight": 1027 },
-                    { "name": "Arithmetic", "weight": 3891 },
-                    { "name": "Average", "weight": 891 },
-                    { "name": "BinaryExpression", "weight": 2893 },
-                    { "name": "Comparison", "weight": 5103 },
-                    { "name": "CompositeExpression", "weight": 3677 },
-                    { "name": "Count", "weight": 781 },
-                    { "name": "DateUtil", "weight": 4141 },
-                    { "name": "Distinct", "weight": 933 },
-                    { "name": "Expression", "weight": 5130 },
-                    { "name": "ExpressionIterator", "weight": 3617 },
-                    { "name": "Fn", "weight": 3240 },
-                    { "name": "If", "weight": 2732 },
-                    { "name": "IsA", "weight": 2039 },
-                    { "name": "Literal", "weight": 1214 },
-                    { "name": "Match", "weight": 3748 },
-                    { "name": "Maximum", "weight": 843 },
-                    {
-                        "name": "methods",
-                        "children": [
-                            { "name": "add", "weight": 593 },
-                            { "name": "and", "weight": 330 },
-                            { "name": "average", "weight": 287 },
-                            { "name": "count", "weight": 277 },
-                            { "name": "distinct", "weight": 292 },
-                            { "name": "div", "weight": 595 },
-                            { "name": "eq", "weight": 594 },
-                            { "name": "fn", "weight": 460 },
-                            { "name": "gt", "weight": 603 },
-                            { "name": "gte", "weight": 625 },
-                            { "name": "iff", "weight": 748 },
-                            { "name": "isa", "weight": 461 },
-                            { "name": "lt", "weight": 597 },
-                            { "name": "lte", "weight": 619 },
-                            { "name": "max", "weight": 283 },
-                            { "name": "min", "weight": 283 },
-                            { "name": "mod", "weight": 591 },
-                            { "name": "mul", "weight": 603 },
-                            { "name": "neq", "weight": 599 },
-                            { "name": "not", "weight": 386 },
-                            { "name": "or", "weight": 323 },
-                            { "name": "orderby", "weight": 307 },
-                            { "name": "range", "weight": 772 },
-                            { "name": "select", "weight": 296 },
-                            { "name": "stddev", "weight": 363 },
-                            { "name": "sub", "weight": 600 },
-                            { "name": "sum", "weight": 280 },
-                            { "name": "update", "weight": 307 },
-                            { "name": "variance", "weight": 335 },
-                            { "name": "where", "weight": 299 },
-                            { "name": "xor", "weight": 354 },
-                            { "name": "_", "weight": 264 }
-                        ]
-                    },
-                    { "name": "Minimum", "weight": 843 },
-                    { "name": "Not", "weight": 1554 },
-                    { "name": "Or", "weight": 970 },
-                    { "name": "Query", "weight": 13896 },
-                    { "name": "Range", "weight": 1594 },
-                    { "name": "StringUtil", "weight": 4130 },
-                    { "name": "Sum", "weight": 791 },
-                    { "name": "Variable", "weight": 1124 },
-                    { "name": "Variance", "weight": 1876 },
-                    { "name": "Xor", "weight": 1101 }
-                ]
-            },
-            {
-                "name": "scale",
-                "children": [
-                    { "name": "IScaleMap", "weight": 2105 },
-                    { "name": "LinearScale", "weight": 1316 },
-                    { "name": "LogScale", "weight": 3151 },
-                    { "name": "OrdinalScale", "weight": 3770 },
-                    { "name": "QuantileScale", "weight": 2435 },
-                    { "name": "QuantitativeScale", "weight": 4839 },
-                    { "name": "RootScale", "weight": 1756 },
-                    { "name": "Scale", "weight": 4268 },
-                    { "name": "ScaleType", "weight": 1821 },
-                    { "name": "TimeScale", "weight": 5833 }
-                ]
-            },
-            {
-                "name": "util",
-                "children": [
-                    { "name": "Arrays", "weight": 8258 },
-                    { "name": "Colors", "weight": 10001 },
-                    { "name": "Dates", "weight": 8217 },
-                    { "name": "Displays", "weight": 12555 },
-                    { "name": "Filter", "weight": 2324 },
-                    { "name": "Geometry", "weight": 10993 },
-                    {
-                        "name": "heap",
-                        "children": [
-                            { "name": "FibonacciHeap", "weight": 9354 },
-                            { "name": "HeapNode", "weight": 1233 }
-                        ]
-                    },
-                    { "name": "IEvaluable", "weight": 335 },
-                    { "name": "IPredicate", "weight": 383 },
-                    { "name": "IValueProxy", "weight": 874 },
-                    {
-                        "name": "math",
-                        "children": [
-                            { "name": "DenseMatrix", "weight": 3165 },
-                            { "name": "IMatrix", "weight": 2815 },
-                            { "name": "SparseMatrix", "weight": 3366 }
-                        ]
-                    },
-                    { "name": "Maths", "weight": 17705 },
-                    { "name": "Orientation", "weight": 1486 },
-                    {
-                        "name": "palette",
-                        "children": [
-                            { "name": "ColorPalette", "weight": 6367 },
-                            { "name": "Palette", "weight": 1229 },
-                            { "name": "ShapePalette", "weight": 2059 },
-                            { "name": "SizePalette", "weight": 2291 }
-                        ]
-                    },
-                    { "name": "Property", "weight": 5559 },
-                    { "name": "Shapes", "weight": 19118 },
-                    { "name": "Sort", "weight": 6887 },
-                    { "name": "Stats", "weight": 6557 },
-                    { "name": "Strings", "weight": 22026 }
-                ]
-            },
-            {
-                "name": "vis",
-                "children": [
-                    {
-                        "name": "axis",
-                        "children": [
-                            { "name": "Axes", "weight": 1302 },
-                            { "name": "Axis", "weight": 24593 },
-                            { "name": "AxisGridLine", "weight": 652 },
-                            { "name": "AxisLabel", "weight": 636 },
-                            { "name": "CartesianAxes", "weight": 6703 }
-                        ]
-                    },
-                    {
-                        "name": "controls",
-                        "children": [
-                            { "name": "AnchorControl", "weight": 2138 },
-                            { "name": "ClickControl", "weight": 3824 },
-                            { "name": "Control", "weight": 1353 },
-                            { "name": "ControlList", "weight": 4665 },
-                            { "name": "DragControl", "weight": 2649 },
-                            { "name": "ExpandControl", "weight": 2832 },
-                            { "name": "HoverControl", "weight": 4896 },
-                            { "name": "IControl", "weight": 763 },
-                            { "name": "PanZoomControl", "weight": 5222 },
-                            { "name": "SelectionControl", "weight": 7862 },
-                            { "name": "TooltipControl", "weight": 8435 }
-                        ]
-                    },
-                    {
-                        "name": "data",
-                        "children": [
-                            { "name": "Data", "weight": 20544 },
-                            { "name": "DataList", "weight": 19788 },
-                            { "name": "DataSprite", "weight": 10349 },
-                            { "name": "EdgeSprite", "weight": 3301 },
-                            { "name": "NodeSprite", "weight": 19382 },
-                            {
-                                "name": "render",
-                                "children": [
-                                    { "name": "ArrowType", "weight": 698 },
-                                    { "name": "EdgeRenderer", "weight": 5569 },
-                                    { "name": "IRenderer", "weight": 353 },
-                                    { "name": "ShapeRenderer", "weight": 2247 }
-                                ]
-                            },
-                            { "name": "ScaleBinding", "weight": 11275 },
-                            { "name": "Tree", "weight": 7147 },
-                            { "name": "TreeBuilder", "weight": 9930 }
-                        ]
-                    },
-                    {
-                        "name": "events",
-                        "children": [
-                            { "name": "DataEvent", "weight": 2313 },
-                            { "name": "SelectionEvent", "weight": 1880 },
-                            { "name": "TooltipEvent", "weight": 1701 },
-                            { "name": "VisualizationEvent", "weight": 1117 }
-                        ]
-                    },
-                    {
-                        "name": "legend",
-                        "children": [
-                            { "name": "Legend", "weight": 20859 },
-                            { "name": "LegendItem", "weight": 4614 },
-                            { "name": "LegendRange", "weight": 10530 }
-                        ]
-                    },
-                    {
-                        "name": "operator",
-                        "children": [
-                            {
-                                "name": "distortion",
-                                "children": [
-                                    { "name": "BifocalDistortion", "weight": 4461 },
-                                    { "name": "Distortion", "weight": 6314 },
-                                    { "name": "FisheyeDistortion", "weight": 3444 }
-                                ]
-                            },
-                            {
-                                "name": "encoder",
-                                "children": [
-                                    { "name": "ColorEncoder", "weight": 3179 },
-                                    { "name": "Encoder", "weight": 4060 },
-                                    { "name": "PropertyEncoder", "weight": 4138 },
-                                    { "name": "ShapeEncoder", "weight": 1690 },
-                                    { "name": "SizeEncoder", "weight": 1830 }
-                                ]
-                            },
-                            {
-                                "name": "filter",
-                                "children": [
-                                    { "name": "FisheyeTreeFilter", "weight": 5219 },
-                                    { "name": "GraphDistanceFilter", "weight": 3165 },
-                                    { "name": "VisibilityFilter", "weight": 3509 }
-                                ]
-                            },
-                            { "name": "IOperator", "weight": 1286 },
-                            {
-                                "name": "label",
-                                "children": [
-                                    { "name": "Labeler", "weight": 9956 },
-                                    { "name": "RadialLabeler", "weight": 3899 },
-                                    { "name": "StackedAreaLabeler", "weight": 3202 }
-                                ]
-                            },
-                            {
-                                "name": "layout",
-                                "children": [
-                                    { "name": "AxisLayout", "weight": 6725 },
-                                    { "name": "BundledEdgeRouter", "weight": 3727 },
-                                    { "name": "CircleLayout", "weight": 9317 },
-                                    { "name": "CirclePackingLayout", "weight": 12003 },
-                                    { "name": "DendrogramLayout", "weight": 4853 },
-                                    { "name": "ForceDirectedLayout", "weight": 8411 },
-                                    { "name": "IcicleTreeLayout", "weight": 4864 },
-                                    { "name": "IndentedTreeLayout", "weight": 3174 },
-                                    { "name": "Layout", "weight": 7881 },
-                                    { "name": "NodeLinkTreeLayout", "weight": 12870 },
-                                    { "name": "PieLayout", "weight": 2728 },
-                                    { "name": "RadialTreeLayout", "weight": 12348 },
-                                    { "name": "RandomLayout", "weight": 870 },
-                                    { "name": "StackedAreaLayout", "weight": 9121 },
-                                    { "name": "TreeMapLayout", "weight": 9191 }
-                                ]
-                            },
-                            { "name": "Operator", "weight": 2490 },
-                            { "name": "OperatorList", "weight": 5248 },
-                            { "name": "OperatorSequence", "weight": 4190 },
-                            { "name": "OperatorSwitch", "weight": 2581 },
-                            { "name": "SortOperator", "weight": 2023 }
-                        ]
-                    },
-                    { "name": "Visualization", "weight": 16540 }
-                ]
-            }
+            { "name": "Level 2: B" }
         ]
     };
     var height = 600;
@@ -5389,10 +4996,10 @@
         isClusterLayout: false,
         containerHeight: height,
         containerWidth: width,
-        enableZoom: true,
+        enableZoom: false,
         minZoomScale: 0.2,
         maxZoomScale: 3,
-        depthWiseHeight: 300,
+        depthWiseHeight: 200,
         extraSpaceBetweenNodes: 20
     };
     var treeNodeShapeProperties = {
@@ -5400,16 +5007,17 @@
         circleRadius: 25,
         rectWidth: 100,
         rectHeight: 70,
-        expandedNodeColor: 'red',
-        collapsedNodeColor: 'green',
+        expandedColor: 'red',
+        collapsedColor: 'green',
         strokeColor: 'black',
-        strokeWidth: 2
+        strokeWidth: 2,
+        takeColorFromData: false
     };
     var treeLinkProperties = {
         treeNodeLinkType: LineType.Curved,
         strokeColor: '#ccc',
         strokeWidth: 5,
-        animation: true
+        enableAnimation: true
     };
     var treeNodeTextProperties = {
         fontFamily: 'Arial',
@@ -5420,7 +5028,8 @@
         maxAllowedWidth: 100,
         textPadding: 5,
         spaceBetweenNodeAndText: 10,
-        showTextInsideShape: true
+        showTextInsideShape: true,
+        showUrlOnText: true
     };
     var treeNodeImageProperties = {
         showImage: false,
@@ -5437,14 +5046,14 @@
         shapeProperties: treeNodeShapeProperties,
         textProperties: treeNodeTextProperties,
         imageProperties: treeNodeImageProperties,
-        animation: true
+        enableAnimation: true
     };
     var treeProperties = {
         generalProperties: treeGeneralProperties,
         nodeProperties: treeNodeProperties,
         linkProperties: treeLinkProperties
     };
-    var d3Tree = new D3Tree(rootSVG, data2, treeProperties);
+    var d3Tree = new D3Tree(rootSVG, data1, treeProperties);
     d3Tree.CreateTree();
 
 })));
