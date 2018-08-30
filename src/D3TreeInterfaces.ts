@@ -1,7 +1,6 @@
 
-// interfaces
-
 import { HierarchyPointNode, HierarchyNode } from 'd3-hierarchy';
+
 
 /**
  * Extension of `HierarchyPointNode` from `D3` with extra properties.
@@ -22,7 +21,7 @@ export interface TreeData extends OptionalTreeData {
      */
     name: string;
     /**
-     * Optional children of the node.
+     * Children of the node.
      */
     children?: TreeData[] | null;
     
@@ -30,24 +29,24 @@ export interface TreeData extends OptionalTreeData {
 
 export interface OptionalTreeData {
     /**
-     * (optional) Show image on the node and expand and collapse color will be applied
+     * Show image on the node and expand and collapse color will be applied
      * on stroke of the image if only image is visible on node.
      */
     imageURL?: string | null;
     /**
-     * (optional) Text url that will be used to add hyperlink to node text.
+     * Text url that will be used to add hyperlink to node text.
      */
     externalURL?: string | null;
     /**
-     * (optional) Weight of the node. Can be used to sort the nodes.
+     * Weight of the node. Can be used to sort the nodes.
      */
     weight?: number | null;
     /**
-     * (optional) Node Color. Can be used to add different color to individual node.
+     * Node Color. Can be used to add different color to individual node.
      */
     nodeColor?: string | null;
     /**
-     * (optional) Node text color.
+     * Node text color.
      */
     nodeTextColor?: string | null;
 }
@@ -83,11 +82,16 @@ export interface TreeGeneralProperties {
      */
     minZoomScale?: number,
     /**
-     * (optional) If `enableZoom` is true then use this property to specify MAXIMUM ZOOM that is allowed on tree. 
+     * If `enableZoom` is true then use this property to specify MAXIMUM ZOOM that is allowed on tree.
+     * @default 3
      */
     maxZoomScale?: number,
+    /**
+     * If `true` then will show tree as cluster layout where all children will be at the same level.
+     * @default false
+     */
     isClusterLayout?: boolean,
-    extraPerLevelDepth?: number,
+    depthWiseHeight?: number,
     extraSpaceBetweenNodes?: number,
 }
 

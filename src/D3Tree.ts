@@ -16,23 +16,23 @@ import { max } from 'd3-array';
 import * as d3_ease from 'd3-ease';
 import 'd3-transition';
 
-// svgutils
+// SVG Utils
 let Translate = SVGUtils.Translate;
 let MeasureTextSize = SVGUtils.MeasureTextSize;
 let GetTailoredTextOrDefault = SVGUtils.GetTailoredTextOrDefault;
-let ValidateBoundries = SVGUtils.ValidateBoundary;
+let ValidateBoundary = SVGUtils.ValidateBoundary;
 
 export class D3Tree {
 
     private treeGroup: Selection<BaseType, any, any, any>; // Holds the parent group element of the tree.
-    private treeLayout: TreeLayout<any>; // Holds defination of funtion to create tree layout based on given tree type, size and hierarhcy data.
+    private treeLayout: TreeLayout<any>; // Holds definition of function to create tree layout based on given tree type, size and hierarchy data.
     private hierarchyData: HierarchyNode<any>; // Holds hierarchy data which gives information such as depth and height of the nodes and other info.
     private treeNodes: TreePointNode<any>; // Holds tree data created from treeMap and hierarchyData with info such as x and y coordinate of the node.
     private treeNodeArray: TreePointNode<any>[]; // Holds nodes in form of array in chronological order from top to bottom.
-    private treeDataLinks: HierarchyPointLink<any>[]; // Holds defination of links between nodes.
-    private dynamicHeightAndWidth: boolean = false; // enable zoom when there is no treeheight and width is provided.
+    private treeDataLinks: HierarchyPointLink<any>[]; // Holds definition of links between nodes.
+    private enableZoom: boolean = false; // enable zoom when there is no treeheight and width is provided.
     private maxExpandedDepth: number; // will store max depth of tree visible on screen
-    private rootSVGZoomListner: ZoomBehavior<Element, {}>;
+    private rootSVGZoomListener: ZoomBehavior<Element, {}>;
     private nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
     private textStyleProperties: TextStyleProperties;
 
@@ -53,7 +53,7 @@ export class D3Tree {
     }
 
     /**
-     * Call this funtion which will create initial tree structure based on `generalProperties` specified in
+     * Call this function which will create initial tree structure based on `generalProperties` specified in
      * `treeProperties` in constructor.
      */
     CreateTree() {
@@ -79,7 +79,7 @@ export class D3Tree {
         });
 
         /**
-         * Recursive funtion used to collapse tree nodes based on defaultMaxDepth property of generalSettings.
+         * Recursive function used to collapse tree nodes based on defaultMaxDepth property of generalSettings.
          * @param node tree node
          */
         let collapseNodes = (node: any) => {
@@ -111,12 +111,12 @@ export class D3Tree {
 
         // only add zoom when no fixed treeheight and treewidth is provided.
         if (generalProperties.enableZoom) {
-            this.dynamicHeightAndWidth = true;
+            this.enableZoom = true;
             // this.rootSVG.style('cursor', 'grab')
         }
 
         this._updateTree(); // update the tree if already created or make a new tree.
-        if (this.dynamicHeightAndWidth) {
+        if (this.enableZoom) {
             this._centerNode(this.treeNodes); // center the root node.
         }
     }
@@ -144,8 +144,8 @@ export class D3Tree {
         if (generalProperties.isClusterLayout == undefined) {
             generalProperties.isClusterLayout = false;
         }
-        if (generalProperties.extraPerLevelDepth == undefined) {
-            generalProperties.extraPerLevelDepth = 0;
+        if (generalProperties.depthWiseHeight == undefined) {
+            generalProperties.depthWiseHeight = 0;
         }
         if (generalProperties.minZoomScale == undefined) {
             generalProperties.minZoomScale = 0.2;
@@ -236,41 +236,22 @@ export class D3Tree {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
 
-        // if dynaimicHeightSndWidth is true,s that means no treeheight or treewidth is provided
-        // than we calculate it according to the tree data.
-        let treeHeight;
-        let treeWidth;
+        let treeHeight: number;
+        let treeWidth: number = 100; // assign random width.
 
-        if (this.dynamicHeightAndWidth) {
-
-            // Find longest text width present in tree to calculate proper spacing between nodes.
+        if (this.enableZoom) {
             if (nodeTextProperties.showTextInsideShape) {
-                treeWidth = (this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
                 if (generalProperties.orientation == Orientation.Horizontal) {
                     treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
                 } else {
                     treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
                 }
             } else {
-                let maxTextWidth = 0;
-                let findMaxTextLength = (level: number, node: any) => {
-                    let textWidth = MeasureTextSize(this.textStyleProperties, node.data.name).width;  
-                    if (node.children && node.children.length > 0 && level < this.maxExpandedDepth) {
-                        node.children.forEach((element) => {
-                            findMaxTextLength(level + 1, element);
-                        });
-                    }
-                    maxTextWidth = Math.max(textWidth, maxTextWidth);
-                };
-                findMaxTextLength(0, this.hierarchyData);
-
                 let textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
 
                 // if node shape size is greater than text height than use that for treeHeight calculation
                 let perNodeHeight: number = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
-                let perNodeWidth: number = 0;
-                perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
-                treeWidth = (maxTextWidth + generalProperties.extraPerLevelDepth) * (this.maxExpandedDepth + 1);
+                let perNodeWidth: number = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
                 if (generalProperties.orientation == Orientation.Horizontal) {
                     treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
                 } else {
@@ -278,14 +259,14 @@ export class D3Tree {
                 }
             }
 
-            // zoom will chnage transform of group element which is child of root SVG and parent of tree
+            // zoom will change transform of group element which is child of root SVG and parent of tree
             let treeGroupZoomAction = () => {      
                 this.treeGroup.attr('transform', event.transform);
                 // this.rootSVG.style('cursor', 'grab');
             }
 
-            // listner will be attached to root SVG.
-            this.rootSVGZoomListner = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
+            // listener will be attached to root SVG.
+            this.rootSVGZoomListener = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
                 // .on('start', () => {
                 //     console.log('start');
                 //     this.rootSVG.style('cursor', 'grabbing');
@@ -302,7 +283,7 @@ export class D3Tree {
                     );
                 });
             
-            this.rootSVG.call(this.rootSVGZoomListner)
+            this.rootSVG.call(this.rootSVGZoomListener)
             .on('dblclick.zoom', () => {
                 // center to root node on double click.
                 this._centerNode(this.treeNodes); 
@@ -375,14 +356,15 @@ export class D3Tree {
         this.treeNodes = this.treeLayout(this.hierarchyData);
         this.treeNodeArray = this.treeNodes.descendants();
 
-        // if orientation is horizontal than swap the x and y
-        if (generalProperties.orientation == Orientation.Horizontal) {
-            this.treeNodeArray.forEach((node) => {
+        this.treeNodeArray.forEach((node) => {
+            node.y = node.depth * generalProperties.depthWiseHeight;
+            // if orientation is horizontal than swap the x and y
+            if (generalProperties.orientation == Orientation.Horizontal) {
                 node.x = node.x + node.y;
                 node.y = node.x - node.y;
                 node.x = node.x - node.y;
-            });
-        }
+            }
+        });
 
         this.treeDataLinks = this.treeNodes.links();
     }
@@ -461,12 +443,12 @@ export class D3Tree {
                 node.children = node._children;
                 node._children = null;
             }
-            if (this.dynamicHeightAndWidth) {
+            if (this.enableZoom) {
                 // finding maximum expanded depth for dynamic height calculation.
                 this.maxExpandedDepth = max(this.hierarchyData.leaves().map((node) => { return node.depth }));
             }
             this._updateTree();
-            if (this.dynamicHeightAndWidth) {
+            if (this.enableZoom) {
                 this._centerNode(node);
             }
         }
@@ -521,10 +503,10 @@ export class D3Tree {
                 x = -nodeImageProperties.width / 2;
             } else if (nodeImageProperties.position == Position.Left) {
                 x = -this.nodeShapeWidth / 2 + nodeImageProperties.xOffset;
-                x = ValidateBoundries(x, positiveX, negativeX);
+                x = ValidateBoundary(x, positiveX, negativeX);
             } else if (nodeImageProperties.position == Position.Right) {
                 x = this.nodeShapeWidth / 2 - nodeImageProperties.width + nodeImageProperties.xOffset;
-                x = ValidateBoundries(x, positiveX, negativeX);
+                x = ValidateBoundary(x, positiveX, negativeX);
             } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
                 x = -nodeImageProperties.width / 2;
             }
@@ -539,10 +521,10 @@ export class D3Tree {
                 y = -nodeImageProperties.height / 2;
             } else if (nodeImageProperties.position == Position.Top) {
                 y = -this.nodeShapeHeight / 2 - nodeImageProperties.yOffset;
-                y = ValidateBoundries(y, positiveY, negativeY);
+                y = ValidateBoundary(y, positiveY, negativeY);
             } else if (nodeImageProperties.position == Position.Bottom) {
                 y = this.nodeShapeHeight / 2 - nodeImageProperties.height - nodeImageProperties.yOffset;
-                y = ValidateBoundries(y, positiveY, negativeY);
+                y = ValidateBoundary(y, positiveY, negativeY);
             }
             return y;
         }
@@ -589,7 +571,7 @@ export class D3Tree {
         let y = -node.y;
         x = x * t.k + this.treeProperties.generalProperties.containerWidth / 2;
         y = y * t.k + this.treeProperties.generalProperties.containerHeight / 2;
-        this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListner.transform as any, zoomIdentity.translate(x,y).scale(t.k));
+        this.rootSVG.transition().duration(1000).call(this.rootSVGZoomListener.transform as any, zoomIdentity.translate(x,y).scale(t.k));
     }
 
     private _createNodeText() {
@@ -641,7 +623,7 @@ export class D3Tree {
                                 positiveX = this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
                                 negativeX = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
                                 x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                                x = ValidateBoundries(x, positiveX, negativeX); 
+                                x = ValidateBoundary(x, positiveX, negativeX); 
                             } else if (nodeImageProperties.position == Position.Right) {
                                 nodeText.style('text-anchor', 'start');
                                 x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
@@ -650,14 +632,14 @@ export class D3Tree {
                                 positiveY = this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
                                 negativeY = -this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
                                 y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                y = ValidateBoundries(y, positiveY, negativeY);
+                                y = ValidateBoundary(y, positiveY, negativeY);
                             } else if (nodeImageProperties.position == Position.Bottom) {
                                 nodeText.style('text-anchor', 'middle');
                                 positiveY = this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
                                 negativeY = -this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
                                 y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (this.nodeShapeHeight / 2 - nodeImageProperties.height);
                                 console.log(y, positiveY, negativeY);
-                                y = ValidateBoundries(y, positiveY, negativeY);
+                                y = ValidateBoundary(y, positiveY, negativeY);
                             }
                             return Translate(x, y);
                         }
@@ -737,9 +719,9 @@ export class D3Tree {
 
         let nodePerpendicularLineLength: number = 0;
         if (generalProperties.orientation == Orientation.Horizontal) {
-            nodePerpendicularLineLength = this.nodeShapeWidth / 2 +(this.nodeShapeWidth + generalProperties.extraPerLevelDepth) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeWidth / 2 +(this.nodeShapeWidth + generalProperties.depthWiseHeight) * 0.4;
         } else {
-            nodePerpendicularLineLength = this.nodeShapeHeight /2 + (this.nodeShapeHeight + generalProperties.extraPerLevelDepth) * 0.4;
+            nodePerpendicularLineLength = this.nodeShapeHeight /2 + (this.nodeShapeHeight + generalProperties.depthWiseHeight) * 0.4;
         }
         let horizontalCornerLink = (source: TreePointNode<any>, target: TreePointNode<any>) => {
             return "M" + source.x + "," + source.y +

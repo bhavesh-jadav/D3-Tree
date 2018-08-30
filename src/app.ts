@@ -412,16 +412,16 @@ let rootSVG = select('body')
     .style('background-color', '#F2F2F2');
 
 let treeGeneralProperties: TreeGeneralProperties = {
-    orientation: Orientation.Horizontal,
-    defaultMaxDepth: 0, // n - 1 depth
+    orientation: Orientation.Vertical,
+    defaultMaxDepth: 1, // n - 1 depth
     isClusterLayout: false,
     containerHeight: height,
     containerWidth: width,
     enableZoom: true,
     minZoomScale: 0.2,
     maxZoomScale: 3,
-    extraPerLevelDepth: 100,
-    extraSpaceBetweenNodes: 60
+    depthWiseHeight: 300,
+    extraSpaceBetweenNodes: 20
 }
 
 let treeNodeShapeProperties: TreeNodeShapeProperties = {
@@ -436,7 +436,7 @@ let treeNodeShapeProperties: TreeNodeShapeProperties = {
 }
 
 let treeLinkProperties: TreeLinkProperties = {
-    treeNodeLinkType: LineType.Corner,
+    treeNodeLinkType: LineType.Curved,
     strokeColor: '#ccc',
     strokeWidth: 5,
     animation: true
@@ -448,14 +448,14 @@ let treeNodeTextProperties: TreeNodeTextProperties = {
     foregroundColor: 'black',
     showBackground: false,
     backgroundColor: 'pink',
-    maxAllowedWidth: 50,
+    maxAllowedWidth: 100,
     textPadding: 5,
     spaceBetweenNodeAndText: 10,
     showTextInsideShape: true
 }
 
 let treeNodeImageProperties: TreeNodeImageProperties = {
-    showImage: true,
+    showImage: false,
     height:80,
     width:80,
     strokeColor: 'black',
