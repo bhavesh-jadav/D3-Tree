@@ -368,7 +368,7 @@ export class D3Tree {
             if (generalProperties.enableZoom) {
                 node.y = node.depth * generalProperties.depthWiseHeight;
             }
-            // if orientation is horizontal than swap the x and y
+            // if orientation is horizontal than swap the x and y.
             if (generalProperties.orientation == Orientation.Horizontal) {
                 node.x = node.x + node.y;
                 node.y = node.x - node.y;

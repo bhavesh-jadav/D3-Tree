@@ -32,6 +32,66 @@
     })(Position || (Position = {}));
     //# sourceMappingURL=D3TreeInterfaces.js.map
 
+    var treeProperties1 = {
+        generalProperties: {
+            orientation: Orientation.Vertical,
+            defaultMaxDepth: 1,
+            isClusterLayout: false,
+            containerHeight: 600,
+            containerWidth: 800,
+            enableZoom: false,
+            minZoomScale: 0.2,
+            maxZoomScale: 3,
+            depthWiseHeight: 200,
+            extraSpaceBetweenNodes: 20
+        },
+        nodeProperties: {
+            shapeProperties: {
+                shapeType: ShapeType.Rectangle,
+                circleRadius: 25,
+                rectWidth: 100,
+                rectHeight: 70,
+                expandedColor: 'red',
+                collapsedColor: 'green',
+                strokeColor: 'black',
+                strokeWidth: 2,
+                takeColorFromData: false
+            },
+            textProperties: {
+                fontFamily: 'Arial',
+                fontSize: '20px',
+                foregroundColor: 'black',
+                showBackground: false,
+                backgroundColor: 'pink',
+                maxAllowedWidth: 100,
+                textPadding: 5,
+                spaceBetweenNodeAndText: 10,
+                showTextInsideShape: true,
+                showUrlOnText: true
+            },
+            imageProperties: {
+                showImage: false,
+                height: 80,
+                width: 80,
+                strokeColor: 'black',
+                strokeWidth: 3,
+                shape: ShapeType.None,
+                xOffset: 50,
+                yOffset: 0,
+                position: Position.Right
+            },
+            enableAnimation: true,
+            animationDuration: 1000
+        },
+        linkProperties: {
+            treeNodeLinkType: LineType.Curved,
+            strokeColor: '#ccc',
+            strokeWidth: 5,
+            enableAnimation: true
+        }
+    };
+    //# sourceMappingURL=D3TreeTestProperties.js.map
+
     function defaultSeparation(a, b) {
       return a.parent === b.parent ? 1 : 2;
     }
@@ -4504,7 +4564,7 @@
                 if (generalProperties.enableZoom) {
                     node.y = node.depth * generalProperties.depthWiseHeight;
                 }
-                // if orientation is horizontal than swap the x and y
+                // if orientation is horizontal than swap the x and y.
                 if (generalProperties.orientation == Orientation.Horizontal) {
                     node.x = node.x + node.y;
                     node.y = node.x - node.y;
@@ -4990,70 +5050,7 @@
         .style('height', height + 'px')
         .style('width', width + 'px')
         .style('background-color', '#F2F2F2');
-    var treeGeneralProperties = {
-        orientation: Orientation.Vertical,
-        defaultMaxDepth: 1,
-        isClusterLayout: false,
-        containerHeight: height,
-        containerWidth: width,
-        enableZoom: false,
-        minZoomScale: 0.2,
-        maxZoomScale: 3,
-        depthWiseHeight: 200,
-        extraSpaceBetweenNodes: 20
-    };
-    var treeNodeShapeProperties = {
-        shapeType: ShapeType.Rectangle,
-        circleRadius: 25,
-        rectWidth: 100,
-        rectHeight: 70,
-        expandedColor: 'red',
-        collapsedColor: 'green',
-        strokeColor: 'black',
-        strokeWidth: 2,
-        takeColorFromData: false
-    };
-    var treeLinkProperties = {
-        treeNodeLinkType: LineType.Curved,
-        strokeColor: '#ccc',
-        strokeWidth: 5,
-        enableAnimation: true
-    };
-    var treeNodeTextProperties = {
-        fontFamily: 'Arial',
-        fontSize: '20px',
-        foregroundColor: 'black',
-        showBackground: false,
-        backgroundColor: 'pink',
-        maxAllowedWidth: 100,
-        textPadding: 5,
-        spaceBetweenNodeAndText: 10,
-        showTextInsideShape: true,
-        showUrlOnText: true
-    };
-    var treeNodeImageProperties = {
-        showImage: false,
-        height: 80,
-        width: 80,
-        strokeColor: 'black',
-        strokeWidth: 3,
-        shape: ShapeType.None,
-        xOffset: 50,
-        yOffset: 0,
-        position: Position.Right
-    };
-    var treeNodeProperties = {
-        shapeProperties: treeNodeShapeProperties,
-        textProperties: treeNodeTextProperties,
-        imageProperties: treeNodeImageProperties,
-        enableAnimation: true
-    };
-    var treeProperties = {
-        generalProperties: treeGeneralProperties,
-        nodeProperties: treeNodeProperties,
-        linkProperties: treeLinkProperties
-    };
-    var d3Tree = new D3Tree(rootSVG, data1, treeProperties);
+    var d3Tree = new D3Tree(rootSVG, data1, treeProperties1);
     d3Tree.CreateTree();
 
 })));

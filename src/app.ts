@@ -3,6 +3,7 @@ import {
     TreeNodeShapeProperties, ShapeType, Orientation, LineType, TreeData,
     TreeNodeProperties, TreeNodeImageProperties, Position
 } from './D3TreeInterfaces';
+import { treeProperties1 } from './tests/D3TreeTestProperties'
 import { D3Tree } from './D3Tree';
 import { select } from 'd3-selection'
 
@@ -411,77 +412,7 @@ let rootSVG = select('body')
     .style('width', width + 'px')
     .style('background-color', '#F2F2F2');
 
-let treeGeneralProperties: TreeGeneralProperties = {
-    orientation: Orientation.Vertical,
-    defaultMaxDepth: 1, // n - 1 depth
-    isClusterLayout: false,
-    containerHeight: height,
-    containerWidth: width,
-    enableZoom: false,
-    minZoomScale: 0.2,
-    maxZoomScale: 3,
-    depthWiseHeight: 200,
-    extraSpaceBetweenNodes: 20
-}
-
-let treeNodeShapeProperties: TreeNodeShapeProperties = {
-    shapeType: ShapeType.Rectangle,
-    circleRadius: 25,
-    rectWidth: 100,
-    rectHeight: 70,
-    expandedColor: 'red',
-    collapsedColor: 'green',
-    strokeColor: 'black',
-    strokeWidth: 2,
-    takeColorFromData: false
-}
-
-let treeLinkProperties: TreeLinkProperties = {
-    treeNodeLinkType: LineType.Curved,
-    strokeColor: '#ccc',
-    strokeWidth: 5,
-    enableAnimation: true
-}
-
-let treeNodeTextProperties: TreeNodeTextProperties = {
-    fontFamily: 'Arial',
-    fontSize: '20px',
-    foregroundColor: 'black',
-    showBackground: false,
-    backgroundColor: 'pink',
-    maxAllowedWidth: 100,
-    textPadding: 5,
-    spaceBetweenNodeAndText: 10,
-    showTextInsideShape: true,
-    showUrlOnText: true
-}
-
-let treeNodeImageProperties: TreeNodeImageProperties = {
-    showImage: false,
-    height:80,
-    width:80,
-    strokeColor: 'black',
-    strokeWidth: 3,
-    shape: ShapeType.None,
-    xOffset: 50,
-    yOffset: 0,
-    position: Position.Right
-}
-
-let treeNodeProperties: TreeNodeProperties = {
-    shapeProperties: treeNodeShapeProperties,
-    textProperties: treeNodeTextProperties,
-    imageProperties: treeNodeImageProperties,
-    enableAnimation: true
-}
-
-let treeProperties: TreeProperties = {
-    generalProperties: treeGeneralProperties,
-    nodeProperties: treeNodeProperties,
-    linkProperties: treeLinkProperties
-}
-
-let d3Tree = new D3Tree(rootSVG, data1, treeProperties);
+let d3Tree = new D3Tree(rootSVG, data1, treeProperties1);
 
 
 d3Tree.CreateTree();
