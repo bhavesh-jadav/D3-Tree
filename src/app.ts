@@ -3,9 +3,13 @@ import {
     TreeNodeShapeProperties, ShapeType, Orientation, LineType, TreeData,
     TreeNodeProperties, TreeNodeImageProperties, Position
 } from './D3TreeInterfaces';
-import { treeProperties1 } from './tests/D3TreeTestProperties'
 import { D3Tree } from './D3Tree';
 import { select } from 'd3-selection'
+import * as ns from './tests/treeproperties/nodeshape';
+import * as nt from './tests/treeproperties/nodetext';
+import * as ni from './tests/treeproperties/nodeimage';
+import * as tl from './tests/treeproperties/link';
+import * as tg from './tests/treeproperties/general';
 
 let data1 =
 {
@@ -403,16 +407,28 @@ let data2: TreeData = {
     ]
    };
 
-let height = 600;
-let width = 800;
+let generalProperties = tg.generalProperties1;
+
+
+let treeProperties: TreeProperties = {
+    generalProperties: generalProperties,
+    nodeProperties: {
+        shapeProperties: ns.nodeShapeProperties1,
+        textProperties: nt.nodeTextProperties1,
+        imageProperties: ni.nodeImageProperties1,
+        enableAnimation: true,
+        animationDuration: 1000
+    },
+    linkProperties: tl.treeLinkProperties1
+}
 
 let rootSVG = select('body')
     .append('svg')
-    .style('height', height + 'px')
-    .style('width', width + 'px')
+    .style('height', generalProperties.containerHeight + 'px')
+    .style('width', generalProperties.containerWidth + 'px')
     .style('background-color', '#F2F2F2');
 
-let d3Tree = new D3Tree(rootSVG, data1, treeProperties1);
+let d3Tree = new D3Tree(rootSVG, data1, treeProperties);
 
 
 d3Tree.CreateTree();

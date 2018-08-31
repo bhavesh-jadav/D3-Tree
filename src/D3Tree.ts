@@ -29,8 +29,8 @@ export class D3Tree {
     private hierarchyData: HierarchyNode<any>; // Holds hierarchy data which gives information such as depth and height of the nodes and other info.
     private treeNodes: TreePointNode<any>; // Holds tree data created from treeMap and hierarchyData with info such as x and y coordinate of the node.
     private treeNodeArray: TreePointNode<any>[]; // Holds nodes in form of array in chronological order from top to bottom.
-    private treeDataLinks: HierarchyPointLink<any>[]; // Holds definition of links between nodes.
-    private enableZoom: boolean = false; // enable zoom when there is no treeheight and width is provided.
+    private treeLinks: HierarchyPointLink<any>[]; // Holds definition of links between nodes.
+    private enableZoom: boolean; // enable zoom when there is no treeheight and width is provided.
     private rootSVGZoomListener: ZoomBehavior<Element, {}>;
     private nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
     private textStyleProperties: TextStyleProperties;
@@ -48,7 +48,7 @@ export class D3Tree {
      * @param treeProperties TreeProperties object that specifies different properties and settings of the tree.
      */
     constructor (private rootSVG: Selection<BaseType, any, any, any>, private data: TreeData, private readonly treeProperties: TreeProperties) { 
-        this._setDefaultValuesForTreeProperties();
+        this._setDefaultValuesForOptionalTreeProperties();
     }
 
     /**
@@ -80,9 +80,9 @@ export class D3Tree {
          */
         let collapseNodes = (node: any) => {
             if(node.children && node.depth >= generalProperties.defaultMaxDepth) {
-                node._children = node.children
+                node._children = node.children;
                 node._children.forEach(collapseNodes);
-                node.children = null
+                node.children = null;
             }
         }
         this.hierarchyData.each(collapseNodes); // collapse tree nodes based on DefaultMaxDepth
@@ -128,7 +128,7 @@ export class D3Tree {
         this._createNodeText();
     }
 
-    private _setDefaultValuesForTreeProperties() {
+    private _setDefaultValuesForOptionalTreeProperties() {
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
         let nodeProperties: TreeNodeProperties = this.treeProperties.nodeProperties;
         let nodeShapeProperties: TreeNodeShapeProperties = nodeProperties.shapeProperties;
@@ -149,8 +149,14 @@ export class D3Tree {
         if (generalProperties.maxZoomScale == undefined) {
             generalProperties.minZoomScale = 3;
         }
-        if (generalProperties.extraSpaceBetweenNodes == undefined) {
-            generalProperties.extraSpaceBetweenNodes = 10;
+        if (generalProperties.nodeSize == undefined) {
+            generalProperties.nodeSize = 10;
+        }
+        if (generalProperties.horizontalPadding == undefined) {
+            generalProperties.horizontalPadding = 20;
+        }
+        if (generalProperties.verticalPadding == undefined) {
+            generalProperties.verticalPadding = 20;
         }
 
         // node properties
@@ -194,9 +200,6 @@ export class D3Tree {
         if (nodeTextProperties.textPadding == undefined) {
             nodeTextProperties.textPadding = 0;
         }
-        if (nodeTextProperties.takeColorsFromData == undefined) {
-            nodeTextProperties.takeColorsFromData = false;
-        }
         if (nodeTextProperties.showUrlOnText == undefined) {
             nodeTextProperties.showUrlOnText = false;
         }
@@ -231,46 +234,26 @@ export class D3Tree {
         if (treeLinkProperties.animationDuration == undefined) {
             treeLinkProperties.animationDuration = 1000;
         }
-        if (treeLinkProperties.takeColorsFromData == undefined) {
-            treeLinkProperties.takeColorsFromData = false;
-        }
     }
 
     /**
-     * Creates D3 tree data based on json tree data provided in constructor
+     * Creates D3 tree data based on json tree data provided in constructor.
      */
     private _createTreeData() {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-        let nodeTextProperties: TreeNodeTextProperties = this.treeProperties.nodeProperties.textProperties;
 
         let treeHeight: number;
-        let treeWidth: number = 100; // assign random width.
+        let treeWidth: number;
 
         if (this.enableZoom) {
-            if (nodeTextProperties.showTextInsideShape) {
-                if (generalProperties.orientation == Orientation.Horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
-                } else {
-                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
-                }
-            } else {
-                let textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
-
-                // if node shape size is greater than text height than use that for treeHeight calculation
-                let perNodeHeight: number = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
-                let perNodeWidth: number = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
-                if (generalProperties.orientation == Orientation.Horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
-                } else {
-                    treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
-                }
-            }
+            
+            treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
+            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
 
             // zoom will change transform of group element which is child of root SVG and parent of tree
             let treeGroupZoomAction = () => {      
                 this.treeGroup.attr('transform', event.transform);
-                // this.rootSVG.style('cursor', 'grab');
             }
 
             // listener will be attached to root SVG.
@@ -300,64 +283,25 @@ export class D3Tree {
                 this.rootSVG.style('cursor', 'grabbing');
             });
         } else {
-            // to set right margin for fixed height and width tree, we do following calculations.
-            let fixedMarginForTree = 10;
-            let rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
+            let translate: string;
             if (generalProperties.orientation == Orientation.Horizontal) {
-                let maxLeaveNodesTextWidth = 0;
-                let rootNodeWidth = 0;
-                let fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
-
-                if (nodeTextProperties.showTextInsideShape) {
-                    rootNodeWidth = this.nodeShapeWidth / 2;
-                } else {
-                    rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
-                }
-
-                this.hierarchyData.leaves().forEach((node: TreePointNode<any>) => {
-                    let textWidth = MeasureTextSize(this.textStyleProperties, node.data.name).width;
-                    maxLeaveNodesTextWidth = Math.max(textWidth, maxLeaveNodesTextWidth);
-                });
- 
-                if (nodeTextProperties.showTextInsideShape) {
-                    treeWidth = generalProperties.containerWidth - this.nodeShapeWidth;
-                } else {
-                    treeWidth = generalProperties.containerWidth - (rootNodeWidth + maxLeaveNodesTextWidth + fixedNodeWidth);
-                }
-                treeWidth -= fixedMarginForTree * 2;
-                treeHeight = generalProperties.containerHeight - fixedMarginForTree * 2;
-
-                this.treeGroup.transition()
-                    .duration(1000)
-                    .attr('transform', Translate(rootNodeWidth + fixedMarginForTree, fixedMarginForTree));
+                treeHeight = generalProperties.containerWidth - generalProperties.verticalPadding * 2;
+                treeWidth = generalProperties.containerHeight - generalProperties.horizontalPadding * 2;
+                translate = Translate(generalProperties.verticalPadding, generalProperties.horizontalPadding)
             } else {
-                let nodeHeight = 0;
-                let fixedNodeHeight = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
-
-                if (nodeTextProperties.showTextInsideShape) {
-                    nodeHeight = this.nodeShapeHeight / 2;
-                } else {
-                    nodeHeight = rootNodeTextSize.height + fixedNodeHeight;
-                }
-
-                if (nodeTextProperties.showTextInsideShape) {
-                    treeWidth = generalProperties.containerHeight - this.nodeShapeHeight;
-                } else {
-                    treeWidth = generalProperties.containerHeight - nodeHeight * 2;
-                }
-                treeHeight = generalProperties.containerWidth - fixedMarginForTree * 2;
-                treeWidth -= fixedMarginForTree * 2;
-
-                this.treeGroup.transition()
-                    .duration(1000)
-                    .attr('transform', Translate(fixedMarginForTree, fixedMarginForTree + nodeHeight));
+                treeHeight = generalProperties.containerHeight - generalProperties.verticalPadding * 2;
+                treeWidth = generalProperties.containerWidth - generalProperties.horizontalPadding * 2;
+                translate = Translate(generalProperties.horizontalPadding, generalProperties.verticalPadding);
             }
+            this.treeGroup.transition()
+                .duration(1000)
+                .attr('transform', translate);
         }
 
         if (generalProperties.isClusterLayout) {
-            this.treeLayout =  cluster().size([treeHeight, treeWidth]);
+            this.treeLayout =  cluster().size([treeWidth, treeHeight]);
         } else {
-            this.treeLayout =  tree().size([treeHeight, treeWidth]);
+            this.treeLayout =  tree().size([treeWidth, treeHeight]);
         }
 
         // get final data
@@ -376,7 +320,7 @@ export class D3Tree {
             }
         });
 
-        this.treeDataLinks = this.treeNodes.links();
+        this.treeLinks = this.treeNodes.links();
     }
 
     /**
@@ -680,7 +624,6 @@ export class D3Tree {
                                 positiveY = this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
                                 negativeY = -this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
                                 y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                console.log(y, positiveY, negativeY);
                                 y = ValidateBoundary(y, positiveY, negativeY);
                             }
                             return Translate(x, y);
@@ -796,7 +739,7 @@ export class D3Tree {
         }
 
         let nodeLinks: d3.Selection<d3.BaseType, any, any, any> = this.treeGroup.selectAll('path.link')
-            .data(this.treeDataLinks, (nodeLink: HierarchyPointLink<any>) => {
+            .data(this.treeLinks, (nodeLink: HierarchyPointLink<any>) => {
                 return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
             });
 

@@ -97,7 +97,17 @@ export interface TreeGeneralProperties {
      * Specify extra space between nodes. When nodes seems to be too close or far away,
      * you can change this value to get appropriate distance between node.
      */
-    extraSpaceBetweenNodes?: number,
+    nodeSize: number,
+    /**
+     *  Use this property to set left and right padding of tree to make sure tree fits inside container.
+     * This property is only used when `enableZoom` is disabled.
+     */
+    horizontalPadding?: number
+    /**
+     *  Use this property to set top and bottom padding of tree to make sure tree fits inside container.
+     * This property is only used when `enableZoom` is disabled.
+     */
+    verticalPadding?: number
 }
 
 export interface TreeNodeShapeProperties {
@@ -142,34 +152,6 @@ export interface TreeNodeShapeProperties {
     takeColorFromData?: boolean;
 }
 
-export interface TreeLinkProperties {
-    /**
-     * Link type can be straight, curved etc.
-     */
-    treeNodeLinkType: LineType
-    /**
-     * Color of the link.
-     */
-    strokeColor: string,
-    /**
-     * Width of the link.
-     */
-    strokeWidth: number,
-    /**
-     * Enable or disable animation.
-     */
-    enableAnimation: boolean,
-    /**
-     * If animation is enable then specify duration of animation.
-     */
-    animationDuration?: number
-    /**
-     * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
-     * default colors specified in properties.
-     */
-    takeColorsFromData?: boolean
-}
-
 export interface TreeNodeTextProperties {
     /**
      * Font family of text.
@@ -180,10 +162,6 @@ export interface TreeNodeTextProperties {
      */
     fontSize: string,
     /**
-     * Color of text.
-     */
-    foregroundColor: string,
-    /**
      * Weight of font. e.g. 'bold'
      */
     fontWeight?: string,
@@ -191,6 +169,10 @@ export interface TreeNodeTextProperties {
      * Style of font. e.g. 'italic'
      */
     fontStyle?: string,
+    /**
+     * Color of text.
+     */
+    foregroundColor: string,
     /**
      * Enable this to show background to text.
      */
@@ -216,11 +198,6 @@ export interface TreeNodeTextProperties {
      * If `true` then will display text inside the shape. Make sure to adjust size of shape so that text fits inside correctly.
      */
     showTextInsideShape?: boolean
-    /**
-     * If `true` then colors such as node colors, text color etc. will be taken from data rather than showing 
-     * default colors specified in properties.
-     */
-    takeColorsFromData?: boolean
     /**
      * Shows hyperlink on text. Url for hyperlink is fetched from data itself.
      */
@@ -280,6 +257,29 @@ export interface TreeNodeProperties {
     enableAnimation: boolean,
     /**
      * If animation is enabled then specify the duration.
+     */
+    animationDuration?: number
+}
+
+export interface TreeLinkProperties {
+    /**
+     * Link type can be straight, curved etc.
+     */
+    treeNodeLinkType: LineType
+    /**
+     * Color of the link.
+     */
+    strokeColor: string,
+    /**
+     * Width of the link.
+     */
+    strokeWidth: number,
+    /**
+     * Enable or disable animation.
+     */
+    enableAnimation: boolean,
+    /**
+     * If animation is enable then specify duration of animation.
      */
     animationDuration?: number
 }

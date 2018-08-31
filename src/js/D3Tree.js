@@ -21,9 +21,8 @@ var D3Tree = /** @class */ (function () {
         this.rootSVG = rootSVG;
         this.data = data;
         this.treeProperties = treeProperties;
-        this.enableZoom = false; // enable zoom when there is no treeheight and width is provided.
         this.nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
-        this._setDefaultValuesForTreeProperties();
+        this._setDefaultValuesForOptionalTreeProperties();
     }
     /**
      * Call this function which will create initial tree structure based on `generalProperties` specified in
@@ -92,7 +91,7 @@ var D3Tree = /** @class */ (function () {
         this._createNodeLinks();
         this._createNodeText();
     };
-    D3Tree.prototype._setDefaultValuesForTreeProperties = function () {
+    D3Tree.prototype._setDefaultValuesForOptionalTreeProperties = function () {
         var generalProperties = this.treeProperties.generalProperties;
         var nodeProperties = this.treeProperties.nodeProperties;
         var nodeShapeProperties = nodeProperties.shapeProperties;
@@ -112,8 +111,14 @@ var D3Tree = /** @class */ (function () {
         if (generalProperties.maxZoomScale == undefined) {
             generalProperties.minZoomScale = 3;
         }
-        if (generalProperties.extraSpaceBetweenNodes == undefined) {
-            generalProperties.extraSpaceBetweenNodes = 10;
+        if (generalProperties.nodeSize == undefined) {
+            generalProperties.nodeSize = 10;
+        }
+        if (generalProperties.horizontalPadding == undefined) {
+            generalProperties.horizontalPadding = 20;
+        }
+        if (generalProperties.verticalPadding == undefined) {
+            generalProperties.verticalPadding = 20;
         }
         // node properties
         if (nodeProperties.animationDuration == undefined) {
@@ -154,9 +159,6 @@ var D3Tree = /** @class */ (function () {
         if (nodeTextProperties.textPadding == undefined) {
             nodeTextProperties.textPadding = 0;
         }
-        if (nodeTextProperties.takeColorsFromData == undefined) {
-            nodeTextProperties.takeColorsFromData = false;
-        }
         if (nodeTextProperties.showUrlOnText == undefined) {
             nodeTextProperties.showUrlOnText = false;
         }
@@ -189,44 +191,21 @@ var D3Tree = /** @class */ (function () {
         if (treeLinkProperties.animationDuration == undefined) {
             treeLinkProperties.animationDuration = 1000;
         }
-        if (treeLinkProperties.takeColorsFromData == undefined) {
-            treeLinkProperties.takeColorsFromData = false;
-        }
     };
     /**
-     * Creates D3 tree data based on json tree data provided in constructor
+     * Creates D3 tree data based on json tree data provided in constructor.
      */
     D3Tree.prototype._createTreeData = function () {
         var _this = this;
         var generalProperties = this.treeProperties.generalProperties;
-        var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
         var treeHeight;
-        var treeWidth = 100; // assign random width.
+        var treeWidth;
         if (this.enableZoom) {
-            if (nodeTextProperties.showTextInsideShape) {
-                if (generalProperties.orientation == Orientation.Horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
-                }
-                else {
-                    treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
-                }
-            }
-            else {
-                var textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
-                // if node shape size is greater than text height than use that for treeHeight calculation
-                var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
-                var perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
-                if (generalProperties.orientation == Orientation.Horizontal) {
-                    treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
-                }
-                else {
-                    treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
-                }
-            }
+            treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
+            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
             // zoom will change transform of group element which is child of root SVG and parent of tree
             var treeGroupZoomAction = function () {
                 _this.treeGroup.attr('transform', event.transform);
-                // this.rootSVG.style('cursor', 'grab');
             };
             // listener will be attached to root SVG.
             this.rootSVGZoomListener = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
@@ -253,62 +232,26 @@ var D3Tree = /** @class */ (function () {
             });
         }
         else {
-            // to set right margin for fixed height and width tree, we do following calculations.
-            var fixedMarginForTree = 10;
-            var rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
+            var translate = void 0;
             if (generalProperties.orientation == Orientation.Horizontal) {
-                var maxLeaveNodesTextWidth_1 = 0;
-                var rootNodeWidth = 0;
-                var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
-                if (nodeTextProperties.showTextInsideShape) {
-                    rootNodeWidth = this.nodeShapeWidth / 2;
-                }
-                else {
-                    rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
-                }
-                this.hierarchyData.leaves().forEach(function (node) {
-                    var textWidth = MeasureTextSize(_this.textStyleProperties, node.data.name).width;
-                    maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
-                });
-                if (nodeTextProperties.showTextInsideShape) {
-                    treeWidth = generalProperties.containerWidth - this.nodeShapeWidth;
-                }
-                else {
-                    treeWidth = generalProperties.containerWidth - (rootNodeWidth + maxLeaveNodesTextWidth_1 + fixedNodeWidth);
-                }
-                treeWidth -= fixedMarginForTree * 2;
-                treeHeight = generalProperties.containerHeight - fixedMarginForTree * 2;
-                this.treeGroup.transition()
-                    .duration(1000)
-                    .attr('transform', Translate(rootNodeWidth + fixedMarginForTree, fixedMarginForTree));
+                treeHeight = generalProperties.containerWidth - generalProperties.verticalPadding * 2;
+                treeWidth = generalProperties.containerHeight - generalProperties.horizontalPadding * 2;
+                translate = Translate(generalProperties.verticalPadding, generalProperties.horizontalPadding);
             }
             else {
-                var nodeHeight = 0;
-                var fixedNodeHeight = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
-                if (nodeTextProperties.showTextInsideShape) {
-                    nodeHeight = this.nodeShapeHeight / 2;
-                }
-                else {
-                    nodeHeight = rootNodeTextSize.height + fixedNodeHeight;
-                }
-                if (nodeTextProperties.showTextInsideShape) {
-                    treeWidth = generalProperties.containerHeight - this.nodeShapeHeight;
-                }
-                else {
-                    treeWidth = generalProperties.containerHeight - nodeHeight * 2;
-                }
-                treeHeight = generalProperties.containerWidth - fixedMarginForTree * 2;
-                treeWidth -= fixedMarginForTree * 2;
-                this.treeGroup.transition()
-                    .duration(1000)
-                    .attr('transform', Translate(fixedMarginForTree, fixedMarginForTree + nodeHeight));
+                treeHeight = generalProperties.containerHeight - generalProperties.verticalPadding * 2;
+                treeWidth = generalProperties.containerWidth - generalProperties.horizontalPadding * 2;
+                translate = Translate(generalProperties.horizontalPadding, generalProperties.verticalPadding);
             }
+            this.treeGroup.transition()
+                .duration(1000)
+                .attr('transform', translate);
         }
         if (generalProperties.isClusterLayout) {
-            this.treeLayout = cluster().size([treeHeight, treeWidth]);
+            this.treeLayout = cluster().size([treeWidth, treeHeight]);
         }
         else {
-            this.treeLayout = tree().size([treeHeight, treeWidth]);
+            this.treeLayout = tree().size([treeWidth, treeHeight]);
         }
         // get final data
         this.treeNodes = this.treeLayout(this.hierarchyData);
@@ -324,7 +267,7 @@ var D3Tree = /** @class */ (function () {
                 node.x = node.x - node.y;
             }
         });
-        this.treeDataLinks = this.treeNodes.links();
+        this.treeLinks = this.treeNodes.links();
     };
     /**
      * Updates nodes selection with latest data and adds new node groups into DOM.
@@ -613,7 +556,6 @@ var D3Tree = /** @class */ (function () {
                             positiveY = _this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
                             negativeY = -_this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
                             y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                            console.log(y, positiveY, negativeY);
                             y = ValidateBoundary(y, positiveY, negativeY);
                         }
                         return Translate(x, y);
@@ -727,7 +669,7 @@ var D3Tree = /** @class */ (function () {
             }
         };
         var nodeLinks = this.treeGroup.selectAll('path.link')
-            .data(this.treeDataLinks, function (nodeLink) {
+            .data(this.treeLinks, function (nodeLink) {
             return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
         });
         var nodeLinksEnter = nodeLinks.enter()

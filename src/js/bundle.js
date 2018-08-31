@@ -32,66 +32,6 @@
     })(Position || (Position = {}));
     //# sourceMappingURL=D3TreeInterfaces.js.map
 
-    var treeProperties1 = {
-        generalProperties: {
-            orientation: Orientation.Vertical,
-            defaultMaxDepth: 1,
-            isClusterLayout: false,
-            containerHeight: 600,
-            containerWidth: 800,
-            enableZoom: false,
-            minZoomScale: 0.2,
-            maxZoomScale: 3,
-            depthWiseHeight: 200,
-            extraSpaceBetweenNodes: 20
-        },
-        nodeProperties: {
-            shapeProperties: {
-                shapeType: ShapeType.Rectangle,
-                circleRadius: 25,
-                rectWidth: 100,
-                rectHeight: 70,
-                expandedColor: 'red',
-                collapsedColor: 'green',
-                strokeColor: 'black',
-                strokeWidth: 2,
-                takeColorFromData: false
-            },
-            textProperties: {
-                fontFamily: 'Arial',
-                fontSize: '20px',
-                foregroundColor: 'black',
-                showBackground: false,
-                backgroundColor: 'pink',
-                maxAllowedWidth: 100,
-                textPadding: 5,
-                spaceBetweenNodeAndText: 10,
-                showTextInsideShape: true,
-                showUrlOnText: true
-            },
-            imageProperties: {
-                showImage: false,
-                height: 80,
-                width: 80,
-                strokeColor: 'black',
-                strokeWidth: 3,
-                shape: ShapeType.None,
-                xOffset: 50,
-                yOffset: 0,
-                position: Position.Right
-            },
-            enableAnimation: true,
-            animationDuration: 1000
-        },
-        linkProperties: {
-            treeNodeLinkType: LineType.Curved,
-            strokeColor: '#ccc',
-            strokeWidth: 5,
-            enableAnimation: true
-        }
-    };
-    //# sourceMappingURL=D3TreeTestProperties.js.map
-
     function defaultSeparation(a, b) {
       return a.parent === b.parent ? 1 : 2;
     }
@@ -4268,9 +4208,8 @@
             this.rootSVG = rootSVG;
             this.data = data;
             this.treeProperties = treeProperties;
-            this.enableZoom = false; // enable zoom when there is no treeheight and width is provided.
             this.nodeUID = 0; // Used to uniquely identify nodes in tree and it will be used by d3 data joins for enter, update and exit
-            this._setDefaultValuesForTreeProperties();
+            this._setDefaultValuesForOptionalTreeProperties();
         }
         /**
          * Call this function which will create initial tree structure based on `generalProperties` specified in
@@ -4339,7 +4278,7 @@
             this._createNodeLinks();
             this._createNodeText();
         };
-        D3Tree.prototype._setDefaultValuesForTreeProperties = function () {
+        D3Tree.prototype._setDefaultValuesForOptionalTreeProperties = function () {
             var generalProperties = this.treeProperties.generalProperties;
             var nodeProperties = this.treeProperties.nodeProperties;
             var nodeShapeProperties = nodeProperties.shapeProperties;
@@ -4359,8 +4298,14 @@
             if (generalProperties.maxZoomScale == undefined) {
                 generalProperties.minZoomScale = 3;
             }
-            if (generalProperties.extraSpaceBetweenNodes == undefined) {
-                generalProperties.extraSpaceBetweenNodes = 10;
+            if (generalProperties.nodeSize == undefined) {
+                generalProperties.nodeSize = 10;
+            }
+            if (generalProperties.horizontalPadding == undefined) {
+                generalProperties.horizontalPadding = 20;
+            }
+            if (generalProperties.verticalPadding == undefined) {
+                generalProperties.verticalPadding = 20;
             }
             // node properties
             if (nodeProperties.animationDuration == undefined) {
@@ -4401,9 +4346,6 @@
             if (nodeTextProperties.textPadding == undefined) {
                 nodeTextProperties.textPadding = 0;
             }
-            if (nodeTextProperties.takeColorsFromData == undefined) {
-                nodeTextProperties.takeColorsFromData = false;
-            }
             if (nodeTextProperties.showUrlOnText == undefined) {
                 nodeTextProperties.showUrlOnText = false;
             }
@@ -4436,44 +4378,21 @@
             if (treeLinkProperties.animationDuration == undefined) {
                 treeLinkProperties.animationDuration = 1000;
             }
-            if (treeLinkProperties.takeColorsFromData == undefined) {
-                treeLinkProperties.takeColorsFromData = false;
-            }
         };
         /**
-         * Creates D3 tree data based on json tree data provided in constructor
+         * Creates D3 tree data based on json tree data provided in constructor.
          */
         D3Tree.prototype._createTreeData = function () {
             var _this = this;
             var generalProperties = this.treeProperties.generalProperties;
-            var nodeTextProperties = this.treeProperties.nodeProperties.textProperties;
             var treeHeight;
-            var treeWidth = 100; // assign random width.
+            var treeWidth;
             if (this.enableZoom) {
-                if (nodeTextProperties.showTextInsideShape) {
-                    if (generalProperties.orientation == Orientation.Horizontal) {
-                        treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes);
-                    }
-                    else {
-                        treeHeight = this.hierarchyData.leaves().length * (this.nodeShapeWidth + generalProperties.extraSpaceBetweenNodes);
-                    }
-                }
-                else {
-                    var textHeight = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name).height + nodeTextProperties.textPadding;
-                    // if node shape size is greater than text height than use that for treeHeight calculation
-                    var perNodeHeight = textHeight > this.nodeShapeHeight ? textHeight : this.nodeShapeHeight + generalProperties.extraSpaceBetweenNodes;
-                    var perNodeWidth = nodeTextProperties.maxAllowedWidth + nodeTextProperties.textPadding * 2;
-                    if (generalProperties.orientation == Orientation.Horizontal) {
-                        treeHeight = this.hierarchyData.leaves().length * perNodeHeight;
-                    }
-                    else {
-                        treeHeight = this.hierarchyData.leaves().length * perNodeWidth;
-                    }
-                }
+                treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
+                treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
                 // zoom will change transform of group element which is child of root SVG and parent of tree
                 var treeGroupZoomAction = function () {
                     _this.treeGroup.attr('transform', event.transform);
-                    // this.rootSVG.style('cursor', 'grab');
                 };
                 // listener will be attached to root SVG.
                 this.rootSVGZoomListener = zoom().scaleExtent([generalProperties.minZoomScale, generalProperties.maxZoomScale])
@@ -4500,62 +4419,26 @@
                 });
             }
             else {
-                // to set right margin for fixed height and width tree, we do following calculations.
-                var fixedMarginForTree = 10;
-                var rootNodeTextSize = MeasureTextSize(this.textStyleProperties, this.hierarchyData.data.name);
+                var translate = void 0;
                 if (generalProperties.orientation == Orientation.Horizontal) {
-                    var maxLeaveNodesTextWidth_1 = 0;
-                    var rootNodeWidth = 0;
-                    var fixedNodeWidth = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
-                    if (nodeTextProperties.showTextInsideShape) {
-                        rootNodeWidth = this.nodeShapeWidth / 2;
-                    }
-                    else {
-                        rootNodeWidth = rootNodeTextSize.width + fixedNodeWidth;
-                    }
-                    this.hierarchyData.leaves().forEach(function (node) {
-                        var textWidth = MeasureTextSize(_this.textStyleProperties, node.data.name).width;
-                        maxLeaveNodesTextWidth_1 = Math.max(textWidth, maxLeaveNodesTextWidth_1);
-                    });
-                    if (nodeTextProperties.showTextInsideShape) {
-                        treeWidth = generalProperties.containerWidth - this.nodeShapeWidth;
-                    }
-                    else {
-                        treeWidth = generalProperties.containerWidth - (rootNodeWidth + maxLeaveNodesTextWidth_1 + fixedNodeWidth);
-                    }
-                    treeWidth -= fixedMarginForTree * 2;
-                    treeHeight = generalProperties.containerHeight - fixedMarginForTree * 2;
-                    this.treeGroup.transition()
-                        .duration(1000)
-                        .attr('transform', Translate(rootNodeWidth + fixedMarginForTree, fixedMarginForTree));
+                    treeHeight = generalProperties.containerWidth - generalProperties.verticalPadding * 2;
+                    treeWidth = generalProperties.containerHeight - generalProperties.horizontalPadding * 2;
+                    translate = Translate(generalProperties.verticalPadding, generalProperties.horizontalPadding);
                 }
                 else {
-                    var nodeHeight = 0;
-                    var fixedNodeHeight = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
-                    if (nodeTextProperties.showTextInsideShape) {
-                        nodeHeight = this.nodeShapeHeight / 2;
-                    }
-                    else {
-                        nodeHeight = rootNodeTextSize.height + fixedNodeHeight;
-                    }
-                    if (nodeTextProperties.showTextInsideShape) {
-                        treeWidth = generalProperties.containerHeight - this.nodeShapeHeight;
-                    }
-                    else {
-                        treeWidth = generalProperties.containerHeight - nodeHeight * 2;
-                    }
-                    treeHeight = generalProperties.containerWidth - fixedMarginForTree * 2;
-                    treeWidth -= fixedMarginForTree * 2;
-                    this.treeGroup.transition()
-                        .duration(1000)
-                        .attr('transform', Translate(fixedMarginForTree, fixedMarginForTree + nodeHeight));
+                    treeHeight = generalProperties.containerHeight - generalProperties.verticalPadding * 2;
+                    treeWidth = generalProperties.containerWidth - generalProperties.horizontalPadding * 2;
+                    translate = Translate(generalProperties.horizontalPadding, generalProperties.verticalPadding);
                 }
+                this.treeGroup.transition()
+                    .duration(1000)
+                    .attr('transform', translate);
             }
             if (generalProperties.isClusterLayout) {
-                this.treeLayout = cluster().size([treeHeight, treeWidth]);
+                this.treeLayout = cluster().size([treeWidth, treeHeight]);
             }
             else {
-                this.treeLayout = tree().size([treeHeight, treeWidth]);
+                this.treeLayout = tree().size([treeWidth, treeHeight]);
             }
             // get final data
             this.treeNodes = this.treeLayout(this.hierarchyData);
@@ -4571,7 +4454,7 @@
                     node.x = node.x - node.y;
                 }
             });
-            this.treeDataLinks = this.treeNodes.links();
+            this.treeLinks = this.treeNodes.links();
         };
         /**
          * Updates nodes selection with latest data and adds new node groups into DOM.
@@ -4859,7 +4742,6 @@
                                 positiveY = _this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
                                 negativeY = -_this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
                                 y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                console.log(y, positiveY, negativeY);
                                 y = ValidateBoundary(y, positiveY, negativeY);
                             }
                             return Translate(x, y);
@@ -4973,7 +4855,7 @@
                 }
             };
             var nodeLinks = this.treeGroup.selectAll('path.link')
-                .data(this.treeDataLinks, function (nodeLink) {
+                .data(this.treeLinks, function (nodeLink) {
                 return (nodeLink.source.data.name + nodeLink.target.data.name + nodeLink.source.x + nodeLink.target.y);
             });
             var nodeLinksEnter = nodeLinks.enter()
@@ -5028,7 +4910,74 @@
         };
         return D3Tree;
     }());
-    //# sourceMappingURL=D3Tree.js.map
+
+    var nodeShapeProperties1 = {
+        shapeType: ShapeType.Rectangle,
+        circleRadius: 25,
+        rectWidth: 100,
+        rectHeight: 70,
+        expandedColor: 'red',
+        collapsedColor: 'green',
+        strokeColor: 'black',
+        strokeWidth: 2,
+        takeColorFromData: false
+    };
+    //# sourceMappingURL=nodeshape.js.map
+
+    var nodeTextProperties1 = {
+        fontFamily: 'Arial',
+        fontSize: '20px',
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+        foregroundColor: 'black',
+        showBackground: false,
+        backgroundColor: 'pink',
+        maxAllowedWidth: 100,
+        textPadding: 5,
+        spaceBetweenNodeAndText: 10,
+        showTextInsideShape: false,
+        showUrlOnText: true
+    };
+    //# sourceMappingURL=nodetext.js.map
+
+    var nodeImageProperties1 = {
+        showImage: false,
+        height: 80,
+        width: 80,
+        strokeColor: 'black',
+        strokeWidth: 3,
+        shape: ShapeType.None,
+        xOffset: 50,
+        yOffset: 200,
+        position: Position.Top,
+        defaultImageURL: 'https://i.stack.imgur.com/KIqMD.png'
+    };
+    //# sourceMappingURL=nodeimage.js.map
+
+    var treeLinkProperties1 = {
+        treeNodeLinkType: LineType.Curved,
+        strokeColor: '#ccc',
+        strokeWidth: 5,
+        enableAnimation: true,
+        animationDuration: 1000
+    };
+    //# sourceMappingURL=link.js.map
+
+    var generalProperties1 = {
+        orientation: Orientation.Horizontal,
+        defaultMaxDepth: 1,
+        isClusterLayout: false,
+        containerHeight: 600,
+        containerWidth: 800,
+        enableZoom: false,
+        minZoomScale: 0.2,
+        maxZoomScale: 3,
+        depthWiseHeight: 200,
+        nodeSize: 150,
+        horizontalPadding: 30,
+        verticalPadding: 160
+    };
+    //# sourceMappingURL=general.js.map
 
     var data1 = {
         "name": "Top Level",
@@ -5043,14 +4992,25 @@
             { "name": "Level 2: B" }
         ]
     };
-    var height = 600;
-    var width = 800;
+    var generalProperties = generalProperties1;
+    var treeProperties = {
+        generalProperties: generalProperties,
+        nodeProperties: {
+            shapeProperties: nodeShapeProperties1,
+            textProperties: nodeTextProperties1,
+            imageProperties: nodeImageProperties1,
+            enableAnimation: true,
+            animationDuration: 1000
+        },
+        linkProperties: treeLinkProperties1
+    };
     var rootSVG = select('body')
         .append('svg')
-        .style('height', height + 'px')
-        .style('width', width + 'px')
+        .style('height', generalProperties.containerHeight + 'px')
+        .style('width', generalProperties.containerWidth + 'px')
         .style('background-color', '#F2F2F2');
-    var d3Tree = new D3Tree(rootSVG, data1, treeProperties1);
+    var d3Tree = new D3Tree(rootSVG, data1, treeProperties);
     d3Tree.CreateTree();
+    //# sourceMappingURL=app.js.map
 
 })));
