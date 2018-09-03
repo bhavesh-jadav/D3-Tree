@@ -407,7 +407,7 @@ let data2: TreeData = {
     ]
    };
 
-let generalProperties = tg.generalProperties1;
+let generalProperties = tg.generalPropertiesDefault;
 
 
 let treeProperties: TreeProperties = {

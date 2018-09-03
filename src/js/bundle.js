@@ -4447,6 +4447,13 @@
                 if (generalProperties.enableZoom) {
                     node.y = node.depth * generalProperties.depthWiseHeight;
                 }
+                else if (!node.children && node.depth == 0) {
+                    node.x = generalProperties.containerWidth / 2;
+                    node.y = generalProperties.containerHeight / 2;
+                    _this.treeGroup.transition()
+                        .duration(1000)
+                        .attr('transform', Translate(0, 0));
+                }
                 // if orientation is horizontal than swap the x and y.
                 if (generalProperties.orientation == Orientation.Horizontal) {
                     node.x = node.x + node.y;
@@ -4472,6 +4479,27 @@
                 .classed('node', true)
                 .attr('transform', function (node) {
                 return Translate(node.x, node.y);
+            });
+            this.nodesEnter.on('click', function (node) {
+                if (node.children || node._children) {
+                    if (node.children) { // collapse
+                        node._children = node.children;
+                        node.children = null;
+                    }
+                    else if (node._children) { // expand
+                        node.children = node._children;
+                        node._children = null;
+                    }
+                    _this._updateTree();
+                }
+                if (_this.enableZoom) {
+                    _this._centerNode(node);
+                }
+            })
+                .on('mouseover', function (node, i, elements) {
+                if (node.children || node._children) {
+                    select(elements[i]).style('cursor', 'pointer');
+                }
             });
             // animation will be applicable for whole node i.e. shape, text, image etc.
             if (nodeProperties.enableAnimation) {
@@ -4512,22 +4540,7 @@
             }
         };
         D3Tree.prototype._createNodeShapes = function () {
-            var _this = this;
             var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
-            var click = function (node) {
-                if (node.children) { // collapse
-                    node._children = node.children;
-                    node.children = null;
-                }
-                else if (node._children) { // expand
-                    node.children = node._children;
-                    node._children = null;
-                }
-                _this._updateTree();
-                if (_this.enableZoom) {
-                    _this._centerNode(node);
-                }
-            };
             var nodeShape;
             if (nodeShapeProperties.shapeType == ShapeType.Circle) {
                 nodeShape = this.nodesEnter.append('circle')
@@ -4558,12 +4571,6 @@
                 }
             })
                 .attr('stroke-width', nodeShapeProperties.strokeWidth);
-            this.nodesEnter.on('click', click)
-                .on('mouseover', function (node, i, elements) {
-                if (node.children || node._children) {
-                    select(elements[i]).style('cursor', 'pointer');
-                }
-            });
             if (this.treeProperties.nodeProperties.imageProperties.showImage) {
                 this._addImageToNode();
             }
@@ -4665,22 +4672,49 @@
             var nodeImageProperties = this.treeProperties.nodeProperties.imageProperties;
             var maxAllowedTextWidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
             var textHeight = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
+            var nodeTextGroupTransformHorizontal = function (node, i, elements) {
+                var x = 0;
+                var y = 0;
+                var nodeText = select(elements[i]);
+                if (node.children) {
+                    nodeText.style('text-anchor', 'end');
+                    x = -nodeTextProperties.spaceBetweenNodeAndText;
+                    if (nodeTextProperties.showBackground) {
+                        x -= nodeTextProperties.textPadding;
+                    }
+                }
+                else {
+                    nodeText.style('text-anchor', 'start');
+                    x = nodeTextProperties.spaceBetweenNodeAndText;
+                    if (nodeTextProperties.showBackground) {
+                        x += nodeTextProperties.textPadding;
+                    }
+                }
+                return Translate(x, y);
+            };
+            var nodeTextGroupTransformVertical = function (node) {
+                var x = 0;
+                var y = 0;
+                if (node.children) {
+                    y = -nodeTextProperties.spaceBetweenNodeAndText - _this.nodeShapeHeight / 2;
+                    if (nodeTextProperties.showBackground) {
+                        y -= nodeTextProperties.textPadding;
+                    }
+                }
+                else {
+                    y = nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
+                    if (nodeTextProperties.showBackground) {
+                        y += nodeTextProperties.textPadding;
+                    }
+                }
+                return Translate(x, y);
+            };
             var nodeTextEnter = this.nodesEnter
                 .append('g')
-                .classed('nodeText', true)
+                .classed('node-text', true)
                 .each(function (node, i, elements) {
                 var nodeTextGroup = select(elements[i]);
                 var nodeText;
-                // let nodeText = nodeTextGroup.append('text')
-                //     .attr('fill', nodeTextProperties.foregroundColor)
-                //     .style('dominant-baseline', 'middle')
-                //     .style('font-size', nodeTextProperties.fontSize)
-                //     .style('font-family', nodeTextProperties.fontFamily)
-                //     .style('font-weight', nodeTextProperties.fontWeight)
-                //     .style('font-style', nodeTextProperties.fontStyle)
-                //     .text((node: TreePointNode<any>) => {
-                //         return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
-                //     });
                 if (nodeTextProperties.showUrlOnText) {
                     nodeText = nodeTextGroup.each(function (node, i, elements) {
                         if (node.externalURL) {
@@ -4695,8 +4729,8 @@
                         }
                     });
                 }
-                nodeText = nodeText.append('text');
-                nodeText.attr('fill', nodeTextProperties.foregroundColor)
+                nodeText = nodeText.append('text')
+                    .attr('fill', nodeTextProperties.foregroundColor)
                     .style('dominant-baseline', 'middle')
                     .style('font-size', nodeTextProperties.fontSize)
                     .style('font-family', nodeTextProperties.fontFamily)
@@ -4709,96 +4743,92 @@
                     .text(function (node) {
                     return node.data.name;
                 });
-                var svgRect = nodeText.node().getBBox();
-                if (nodeTextProperties.showTextInsideShape) {
-                    if (nodeImageProperties.showImage) {
-                        var textTransform = function () {
-                            var x = 0;
-                            var y = 0;
-                            var positiveX = 0;
-                            var negativeX = 0;
-                            var positiveY = 0;
-                            var negativeY = 0;
-                            if (nodeImageProperties.position == Position.Left) {
-                                nodeText.style('text-anchor', 'start');
-                                positiveX = _this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
-                                negativeX = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
-                                x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                                x = ValidateBoundary(x, positiveX, negativeX);
-                            }
-                            else if (nodeImageProperties.position == Position.Right) {
-                                nodeText.style('text-anchor', 'start');
-                                x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
-                            }
-                            else if (nodeImageProperties.position == Position.Top) {
-                                nodeText.style('text-anchor', 'middle');
-                                positiveY = _this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
-                                negativeY = -_this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
-                                y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                y = ValidateBoundary(y, positiveY, negativeY);
-                            }
-                            else if (nodeImageProperties.position == Position.Bottom) {
-                                nodeText.style('text-anchor', 'middle');
-                                positiveY = _this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
-                                negativeY = -_this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
-                                y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                y = ValidateBoundary(y, positiveY, negativeY);
-                            }
-                            return Translate(x, y);
-                        };
-                        var getTailoredTextBasedOnImage = function (node) {
-                            var tailoredText = '';
-                            if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
-                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
-                            }
-                            else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
-                                tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
-                            }
-                            return tailoredText;
-                        };
-                        nodeText.text(getTailoredTextBasedOnImage);
-                        nodeTextGroup.attr('transform', textTransform);
-                    }
-                    else {
-                        nodeText.style('text-anchor', 'middle');
-                        nodeTextGroup.attr('transform', Translate(0, 0));
-                    }
-                }
-                else if (generalProperties.orientation == Orientation.Horizontal) {
-                    nodeTextGroup.attr('transform', function (node) {
+                if (nodeTextProperties.showTextInsideShape && nodeImageProperties.showImage) {
+                    var textTransformWhenShowImage = function () {
                         var x = 0;
                         var y = 0;
-                        if (node.children) {
-                            x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2);
+                        var positiveX = 0;
+                        var negativeX = 0;
+                        var positiveY = 0;
+                        var negativeY = 0;
+                        if (nodeImageProperties.position == Position.Left) {
+                            nodeText.style('text-anchor', 'start');
+                            positiveX = _this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
+                            negativeX = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
+                            x = -_this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
+                            x = ValidateBoundary(x, positiveX, negativeX);
                         }
-                        else {
-                            x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeWidth / 2;
+                        else if (nodeImageProperties.position == Position.Right) {
+                            nodeText.style('text-anchor', 'start');
+                            x = -_this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
+                        }
+                        else if (nodeImageProperties.position == Position.Top) {
+                            nodeText.style('text-anchor', 'middle');
+                            positiveY = _this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
+                            negativeY = -_this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
+                            y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                            y = ValidateBoundary(y, positiveY, negativeY);
+                        }
+                        else if (nodeImageProperties.position == Position.Bottom) {
+                            nodeText.style('text-anchor', 'middle');
+                            positiveY = _this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
+                            negativeY = -_this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
+                            y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (_this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                            y = ValidateBoundary(y, positiveY, negativeY);
                         }
                         return Translate(x, y);
-                    });
+                    };
+                    var getTailoredTextBasedOnImage = function (node) {
+                        var tailoredText = '';
+                        if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
+                            tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, _this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2, node.data.name);
+                        }
+                        else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom) {
+                            tailoredText = GetTailoredTextOrDefault(_this.textStyleProperties, maxAllowedTextWidth, node.data.name);
+                        }
+                        return tailoredText;
+                    };
+                    nodeText.text(getTailoredTextBasedOnImage);
+                    nodeTextGroup.attr('transform', textTransformWhenShowImage);
+                }
+                else if (nodeTextProperties.showTextInsideShape) {
+                    nodeText.style('text-anchor', 'middle');
+                    nodeTextGroup.attr('transform', Translate(0, 0));
+                }
+                else if (generalProperties.orientation == Orientation.Horizontal) {
+                    nodeTextGroup.attr('transform', nodeTextGroupTransformHorizontal);
                 }
                 else if (generalProperties.orientation == Orientation.Vertical) {
-                    nodeTextGroup.attr('transform', function (node) {
-                        var x = svgRect.width / 2;
-                        var y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + _this.nodeShapeHeight / 2;
-                        if (node.children) {
-                            return Translate(-x, -y);
-                        }
-                        else {
-                            return Translate(-x, y);
-                        }
-                    });
+                    nodeText.style('text-anchor', 'middle');
+                    nodeText.style('dominant-baseline', 'central');
+                    nodeTextGroup.attr('transform', nodeTextGroupTransformVertical);
                 }
                 if (nodeTextProperties.showBackground) {
-                    var svgRect_1 = nodeText.node().getBBox();
+                    var svgRect = nodeText.node().getBBox();
                     nodeTextGroup.insert('rect', 'text')
-                        .attr('x', svgRect_1.x - nodeTextProperties.textPadding / 2)
-                        .attr('y', svgRect_1.y - nodeTextProperties.textPadding / 2)
-                        .attr('height', svgRect_1.height + nodeTextProperties.textPadding)
-                        .attr('width', svgRect_1.width + nodeTextProperties.textPadding)
+                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
+                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
+                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
+                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
             });
+            var nodeTextUpdate = this.nodes.select('.node-text');
+            var transformFunction;
+            if (generalProperties.orientation == Orientation.Horizontal) {
+                transformFunction = nodeTextGroupTransformHorizontal;
+            }
+            else {
+                transformFunction = nodeTextGroupTransformVertical;
+            }
+            if (this.treeProperties.nodeProperties.enableAnimation) {
+                nodeTextUpdate.transition()
+                    .duration(this.treeProperties.nodeProperties.animationDuration)
+                    .attr('transform', transformFunction);
+            }
+            else {
+                nodeTextUpdate.attr('tranform', transformFunction);
+            }
         };
         D3Tree.prototype._createNodeLinks = function () {
             var treeLinkProperties = this.treeProperties.linkProperties;
@@ -4910,12 +4940,13 @@
         };
         return D3Tree;
     }());
+    //# sourceMappingURL=D3Tree.js.map
 
     var nodeShapeProperties1 = {
-        shapeType: ShapeType.Rectangle,
-        circleRadius: 25,
-        rectWidth: 100,
-        rectHeight: 70,
+        shapeType: ShapeType.Circle,
+        circleRadius: 10,
+        rectWidth: 20,
+        rectHeight: 20,
         expandedColor: 'red',
         collapsedColor: 'green',
         strokeColor: 'black',
@@ -4930,7 +4961,7 @@
         fontWeight: 'normal',
         fontStyle: 'normal',
         foregroundColor: 'black',
-        showBackground: false,
+        showBackground: true,
         backgroundColor: 'pink',
         maxAllowedWidth: 100,
         textPadding: 5,
@@ -4963,12 +4994,12 @@
     };
     //# sourceMappingURL=link.js.map
 
-    var generalProperties1 = {
+    var generalPropertiesDefault = {
         orientation: Orientation.Horizontal,
-        defaultMaxDepth: 1,
+        defaultMaxDepth: 0,
         isClusterLayout: false,
-        containerHeight: 600,
-        containerWidth: 800,
+        containerHeight: 700,
+        containerWidth: 700,
         enableZoom: false,
         minZoomScale: 0.2,
         maxZoomScale: 3,
@@ -4992,7 +5023,7 @@
             { "name": "Level 2: B" }
         ]
     };
-    var generalProperties = generalProperties1;
+    var generalProperties = generalPropertiesDefault;
     var treeProperties = {
         generalProperties: generalProperties,
         nodeProperties: {

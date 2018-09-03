@@ -15,6 +15,7 @@ import { zoom, zoomIdentity, ZoomBehavior, zoomTransform } from 'd3-zoom';
 import { max } from 'd3-array';
 import * as d3_ease from 'd3-ease';
 import 'd3-transition';
+import { transition } from 'd3-transition';
 
 // SVG Utils
 let Translate = SVGUtils.Translate;
@@ -242,12 +243,11 @@ export class D3Tree {
     private _createTreeData() {
 
         let generalProperties: TreeGeneralProperties = this.treeProperties.generalProperties;
-
         let treeHeight: number;
         let treeWidth: number;
 
         if (this.enableZoom) {
-            
+
             treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
             treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
 
@@ -311,6 +311,12 @@ export class D3Tree {
         this.treeNodeArray.forEach((node) => {
             if (generalProperties.enableZoom) {
                 node.y = node.depth * generalProperties.depthWiseHeight;
+            } else if (!node.children && node.depth == 0) {
+                node.x = generalProperties.containerWidth / 2;
+                node.y = generalProperties.containerHeight / 2;
+                this.treeGroup.transition()
+                    .duration(1000)
+                    .attr('transform', Translate(0, 0));
             }
             // if orientation is horizontal than swap the x and y.
             if (generalProperties.orientation == Orientation.Horizontal) {
@@ -343,6 +349,27 @@ export class D3Tree {
                 return Translate(node.x, node.y);
             });
 
+        this.nodesEnter.on('click', (node: TreePointNode<any>) => {
+                if (node.children || node._children) {
+                    if (node.children) { // collapse
+                        node._children = node.children;
+                        node.children = null;
+                    } else if(node._children) {  // expand
+                        node.children = node._children;
+                        node._children = null;
+                    }
+                    this._updateTree();
+                }
+                if (this.enableZoom) {
+                    this._centerNode(node);
+                }
+            })
+            .on('mouseover', (node: TreePointNode<any>, i: number, elements: Element[]) => {
+                if (node.children || node._children) {
+                    select(elements[i]).style('cursor', 'pointer')  ;
+                }
+            });
+
         // animation will be applicable for whole node i.e. shape, text, image etc.
         if (nodeProperties.enableAnimation) {
             this.nodesEnter.attr('opacity', 0)
@@ -358,9 +385,9 @@ export class D3Tree {
                 });
 
             this.nodes.select('.node-shape')
-            .transition()
-            .duration(nodeProperties.animationDuration)
-            .attr('fill', (node: TreePointNode<any>) => {
+                .transition()
+                .duration(nodeProperties.animationDuration)
+                .attr('fill', (node: TreePointNode<any>) => {
                     return node._children ? nodeShapeProperties.collapsedColor : nodeShapeProperties.expandedColor;
                 });
 
@@ -389,19 +416,6 @@ export class D3Tree {
 
     private _createNodeShapes() {
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
-        let click = (node: TreePointNode<any>) => {
-            if (node.children) { // collapse
-                node._children = node.children;
-                node.children = null;
-            } else if(node._children) {  // expand
-                node.children = node._children;
-                node._children = null;
-            }
-            this._updateTree();
-            if (this.enableZoom) {
-                this._centerNode(node);
-            }
-        }
 
         let nodeShape;
         if (nodeShapeProperties.shapeType == ShapeType.Circle) {
@@ -431,13 +445,6 @@ export class D3Tree {
                 }
             })
             .attr('stroke-width', nodeShapeProperties.strokeWidth);
-
-        this.nodesEnter.on('click', click)
-            .on('mouseover', (node: TreePointNode<any>, i: number, elements: Element[]) => {
-                if (node.children || node._children) {
-                    select(elements[i]).style('cursor', 'pointer')  ;
-                }
-            });
 
         if (this.treeProperties.nodeProperties.imageProperties.showImage) {
             this._addImageToNode();
@@ -542,24 +549,50 @@ export class D3Tree {
         let maxAllowedTextWidth = nodeTextProperties.maxAllowedWidth - nodeTextProperties.textPadding * 2;
         let textHeight: number = MeasureTextSize(this.textStyleProperties, this.treeNodes.data.name).height;
 
+        let nodeTextGroupTransformHorizontal = (node: TreePointNode<any>, i: number, elements: Element[]) => {
+            let x = 0;
+            let y = 0;
+            let nodeText = select(elements[i]);
+            if (node.children) {
+                nodeText.style('text-anchor', 'end');
+                x = -nodeTextProperties.spaceBetweenNodeAndText;
+                if (nodeTextProperties.showBackground) {
+                    x -= nodeTextProperties.textPadding;
+                }
+            } else {
+                nodeText.style('text-anchor', 'start');
+                x = nodeTextProperties.spaceBetweenNodeAndText;
+                if (nodeTextProperties.showBackground) {
+                    x += nodeTextProperties.textPadding;
+                }
+            }
+            return Translate(x, y);
+        }
+
+        let nodeTextGroupTransformVertical = (node: TreePointNode<any>) => {
+            let x = 0;
+            let y = 0;
+            if (node.children) {
+                y = -nodeTextProperties.spaceBetweenNodeAndText - this.nodeShapeHeight / 2;
+                if (nodeTextProperties.showBackground) {
+                    y -= nodeTextProperties.textPadding;
+                }
+            } else {
+                y = nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
+                if (nodeTextProperties.showBackground) {
+                    y += nodeTextProperties.textPadding;
+                }
+            }
+            return Translate(x, y);
+        }
+
         let nodeTextEnter = this.nodesEnter
             .append('g')
-            .classed('nodeText', true)
+            .classed('node-text', true)
             .each((node: TreePointNode<any>, i: number, elements: Element[]) => {
 
                 let nodeTextGroup = select(elements[i]);
                 let nodeText;
-                
-                // let nodeText = nodeTextGroup.append('text')
-                //     .attr('fill', nodeTextProperties.foregroundColor)
-                //     .style('dominant-baseline', 'middle')
-                //     .style('font-size', nodeTextProperties.fontSize)
-                //     .style('font-family', nodeTextProperties.fontFamily)
-                //     .style('font-weight', nodeTextProperties.fontWeight)
-                //     .style('font-style', nodeTextProperties.fontStyle)
-                //     .text((node: TreePointNode<any>) => {
-                //         return GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
-                //     });
 
                 if (nodeTextProperties.showUrlOnText) {
                     nodeText = nodeTextGroup.each((node: TreePointNode<any>, i: number, elements: Element[]) => {
@@ -576,7 +609,7 @@ export class D3Tree {
                         })
                 }
                 nodeText = nodeText.append('text')
-                nodeText.attr('fill', nodeTextProperties.foregroundColor)
+                    .attr('fill', nodeTextProperties.foregroundColor)
                     .style('dominant-baseline', 'middle')
                     .style('font-size', nodeTextProperties.fontSize)
                     .style('font-family', nodeTextProperties.fontFamily)
@@ -591,84 +624,64 @@ export class D3Tree {
                         return node.data.name;
                     });
 
-                let svgRect: SVGRect = (nodeText.node() as any).getBBox();
-
-                if (nodeTextProperties.showTextInsideShape) {
-                    if (nodeImageProperties.showImage) {
-
-                        let textTransform = () => {
-                            let x: number = 0;
-                            let y: number = 0;
-                            let maxAllowedY: number = 0;
-                            let positiveX: number = 0;
-                            let negativeX: number = 0;
-                            let positiveY: number = 0;
-                            let negativeY: number = 0;
-                            if (nodeImageProperties.position == Position.Left) {
-                                nodeText.style('text-anchor', 'start');
-                                positiveX = this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
-                                negativeX = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
-                                x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
-                                x = ValidateBoundary(x, positiveX, negativeX); 
-                            } else if (nodeImageProperties.position == Position.Right) {
-                                nodeText.style('text-anchor', 'start');
-                                x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
-                            } else if (nodeImageProperties.position == Position.Top) {
-                                nodeText.style('text-anchor', 'middle');
-                                positiveY = this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
-                                negativeY = -this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
-                                y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                y = ValidateBoundary(y, positiveY, negativeY);
-                            } else if (nodeImageProperties.position == Position.Bottom) {
-                                nodeText.style('text-anchor', 'middle');
-                                positiveY = this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
-                                negativeY = -this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
-                                y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (this.nodeShapeHeight / 2 - nodeImageProperties.height);
-                                y = ValidateBoundary(y, positiveY, negativeY);
-                            }
-                            return Translate(x, y);
-                        }
-
-                        let getTailoredTextBasedOnImage = (node: TreePointNode<any>) => {
-                            let tailoredText = '';
-                            if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
-                                tailoredText =  GetTailoredTextOrDefault(
-                                    this.textStyleProperties,
-                                    this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2,
-                                    node.data.name
-                                );
-                            } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom){
-                                tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
-                            }
-                            return tailoredText;
-                        }
-                        nodeText.text(getTailoredTextBasedOnImage);
-                        nodeTextGroup.attr('transform', textTransform);
-                    } else {
-                        nodeText.style('text-anchor', 'middle');
-                        nodeTextGroup.attr('transform', Translate(0, 0));
-                    }
-                } else if (generalProperties.orientation == Orientation.Horizontal) {
-                    nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
+                if (nodeTextProperties.showTextInsideShape && nodeImageProperties.showImage) {
+                    let textTransformWhenShowImage = () => {
                         let x: number = 0;
                         let y: number = 0;
-                        if (node.children) {
-                            x = -(svgRect.width + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2);
-                        } else {
-                            x = nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeWidth / 2;
+                        let positiveX: number = 0;
+                        let negativeX: number = 0;
+                        let positiveY: number = 0;
+                        let negativeY: number = 0;
+                        if (nodeImageProperties.position == Position.Left) {
+                            nodeText.style('text-anchor', 'start');
+                            positiveX = this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeTextProperties.textPadding;
+                            negativeX = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
+                            x = -this.nodeShapeWidth / 2 + nodeImageProperties.width + nodeImageProperties.xOffset + nodeTextProperties.textPadding;
+                            x = ValidateBoundary(x, positiveX, negativeX); 
+                        } else if (nodeImageProperties.position == Position.Right) {
+                            nodeText.style('text-anchor', 'start');
+                            x = -this.nodeShapeWidth / 2 + nodeTextProperties.textPadding;
+                        } else if (nodeImageProperties.position == Position.Top) {
+                            nodeText.style('text-anchor', 'middle');
+                            positiveY = this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding + nodeImageProperties.width;
+                            negativeY = -this.nodeShapeHeight / 2 + textHeight / 2 + nodeTextProperties.textPadding;
+                            y = -nodeImageProperties.yOffset + textHeight / 2 + nodeTextProperties.textPadding - (this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                            y = ValidateBoundary(y, positiveY, negativeY);
+                        } else if (nodeImageProperties.position == Position.Bottom) {
+                            nodeText.style('text-anchor', 'middle');
+                            positiveY = this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding;
+                            negativeY = -this.nodeShapeHeight / 2 - textHeight / 2 - nodeTextProperties.textPadding - nodeImageProperties.height;
+                            y = -nodeImageProperties.yOffset - textHeight / 2 - nodeTextProperties.textPadding + (this.nodeShapeHeight / 2 - nodeImageProperties.height);
+                            y = ValidateBoundary(y, positiveY, negativeY);
                         }
                         return Translate(x, y);
-                    });
-                } else if(generalProperties.orientation == Orientation.Vertical) {
-                    nodeTextGroup.attr('transform', (node: TreePointNode<any>) => {
-                        let x = svgRect.width / 2;
-                        let y = svgRect.height / 2 + nodeTextProperties.textPadding + nodeTextProperties.spaceBetweenNodeAndText + this.nodeShapeHeight / 2;
-                        if (node.children) {
-                            return Translate(-x, -y);
-                        } else {
-                            return Translate(-x, y);
+                    }
+
+                    let getTailoredTextBasedOnImage = (node: TreePointNode<any>) => {
+                        let tailoredText = '';
+                        if (nodeImageProperties.position == Position.Left || nodeImageProperties.position == Position.Right) {
+                            tailoredText =  GetTailoredTextOrDefault(
+                                this.textStyleProperties,
+                                this.nodeShapeWidth - nodeImageProperties.width + nodeImageProperties.xOffset - nodeTextProperties.textPadding * 2,
+                                node.data.name
+                            );
+                        } else if (nodeImageProperties.position == Position.Top || nodeImageProperties.position == Position.Bottom){
+                            tailoredText = GetTailoredTextOrDefault(this.textStyleProperties, maxAllowedTextWidth, node.data.name);
                         }
-                    });
+                        return tailoredText;
+                    }
+                    nodeText.text(getTailoredTextBasedOnImage);
+                    nodeTextGroup.attr('transform', textTransformWhenShowImage);
+                } else if (nodeTextProperties.showTextInsideShape) {
+                    nodeText.style('text-anchor', 'middle');
+                    nodeTextGroup.attr('transform', Translate(0, 0));
+                    
+                } else if (generalProperties.orientation == Orientation.Horizontal) {
+                    nodeTextGroup.attr('transform', nodeTextGroupTransformHorizontal);
+                } else if(generalProperties.orientation == Orientation.Vertical) {
+                    nodeText.style('text-anchor', 'middle');
+                    nodeText.style('dominant-baseline', 'central');
+                    nodeTextGroup.attr('transform', nodeTextGroupTransformVertical);
                 }
 
                 if (nodeTextProperties.showBackground) {
@@ -681,6 +694,22 @@ export class D3Tree {
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
             });
+
+            let nodeTextUpdate = this.nodes.select('.node-text');
+            let transformFunction;
+            if (generalProperties.orientation == Orientation.Horizontal) {
+                transformFunction = nodeTextGroupTransformHorizontal;
+            } else {
+                transformFunction = nodeTextGroupTransformVertical;
+            }
+            
+            if (this.treeProperties.nodeProperties.enableAnimation) {
+                nodeTextUpdate.transition()
+                    .duration(this.treeProperties.nodeProperties.animationDuration)
+                    .attr('transform', transformFunction);
+            } else {
+                nodeTextUpdate.attr('tranform', transformFunction);
+            }
     }
 
     private _createNodeLinks() {

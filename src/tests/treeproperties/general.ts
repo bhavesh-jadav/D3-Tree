@@ -1,11 +1,11 @@
 import { TreeGeneralProperties, Orientation } from './../../D3TreeInterfaces';
 
-export let generalProperties1: TreeGeneralProperties = {
+export let generalPropertiesDefault: TreeGeneralProperties = {
     orientation: Orientation.Horizontal,
-    defaultMaxDepth: 1, // n - 1 depth
+    defaultMaxDepth: 0, // n - 1 depth
     isClusterLayout: false,
-    containerHeight: 600,
-    containerWidth: 800,
+    containerHeight: 700,
+    containerWidth: 700,
     enableZoom: false,
     minZoomScale: 0.2,
     maxZoomScale: 3,

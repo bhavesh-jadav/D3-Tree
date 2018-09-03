@@ -94,8 +94,8 @@ export interface TreeGeneralProperties {
      */
     depthWiseHeight: number,
     /**
-     * Specify extra space between nodes. When nodes seems to be too close or far away,
-     * you can change this value to get appropriate distance between node.
+     * Specify the space in pixels that each node will take. Use this value to make sure that each node have
+     * adequate spacing between them.
      */
     nodeSize: number,
     /**
@@ -187,7 +187,7 @@ export interface TreeNodeTextProperties {
      */
     maxAllowedWidth?: number,
     /**
-     * Specify space between node and text. Used when text is displayed outside the node shape.
+     * Specify space between node center and text. Used when text is displayed outside the node shape.
      */
     spaceBetweenNodeAndText?: number
     /**

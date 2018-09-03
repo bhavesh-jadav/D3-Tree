@@ -6,7 +6,7 @@ export let nodeTextProperties1: TreeNodeTextProperties = {
     fontWeight: 'normal',
     fontStyle: 'normal',
     foregroundColor: 'black',
-    showBackground: false,
+    showBackground: true,
     backgroundColor: 'pink',
     maxAllowedWidth: 100,
     textPadding: 5,

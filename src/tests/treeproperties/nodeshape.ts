@@ -1,10 +1,10 @@
 import { TreeNodeShapeProperties, ShapeType } from "../../D3TreeInterfaces";
 
 export let nodeShapeProperties1: TreeNodeShapeProperties = {
-    shapeType: ShapeType.Rectangle,
-    circleRadius: 25,
-    rectWidth: 100,
-    rectHeight: 70,
+    shapeType: ShapeType.Circle,
+    circleRadius: 10,
+    rectWidth: 20,
+    rectHeight: 20,
     expandedColor: 'red',
     collapsedColor: 'green',
     strokeColor: 'black',
