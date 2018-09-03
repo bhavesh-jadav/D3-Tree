@@ -1,8 +1,4 @@
-import { 
-    TreeGeneralProperties, TreeLinkProperties, TreeNodeTextProperties, TreeProperties,
-    TreeNodeShapeProperties, ShapeType, Orientation, LineType, TreeData,
-    TreeNodeProperties, TreeNodeImageProperties, Position
-} from './D3TreeInterfaces';
+import { TreeProperties, TreeData } from './D3TreeInterfaces';
 import { D3Tree } from './D3Tree';
 import { select } from 'd3-selection'
 import * as ns from './tests/treeproperties/nodeshape';

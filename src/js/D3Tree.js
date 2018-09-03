@@ -202,7 +202,7 @@ var D3Tree = /** @class */ (function () {
         var treeWidth;
         if (this.enableZoom) {
             treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
-            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
+            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize;
             // zoom will change transform of group element which is child of root SVG and parent of tree
             var treeGroupZoomAction = function () {
                 _this.treeGroup.attr('transform', event.transform);
@@ -354,20 +354,20 @@ var D3Tree = /** @class */ (function () {
     };
     D3Tree.prototype._createNodeShapes = function () {
         var nodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
-        var nodeShape;
+        var nodeShape = this.nodesEnter.append('g')
+            .classed('node-shape', true);
         if (nodeShapeProperties.shapeType == ShapeType.Circle) {
-            nodeShape = this.nodesEnter.append('circle')
+            nodeShape = nodeShape.append('circle')
                 .attr('r', nodeShapeProperties.circleRadius);
         }
         else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
-            nodeShape = this.nodesEnter.append('rect')
+            nodeShape = nodeShape.append('rect')
                 .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
                 .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
                 .attr('height', nodeShapeProperties.rectHeight)
                 .attr('width', nodeShapeProperties.rectWidth);
         }
-        nodeShape.classed('node-shape', true)
-            .attr('fill', function (node) {
+        nodeShape.attr('fill', function (node) {
             if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
                 return node.nodeColor;
             }
@@ -488,16 +488,16 @@ var D3Tree = /** @class */ (function () {
         var nodeTextGroupTransformHorizontal = function (node, i, elements) {
             var x = 0;
             var y = 0;
-            var nodeText = select(elements[i]);
+            var nodeText = select(elements[i]).select('text');
+            nodeText.style('text-anchor', 'start');
             if (node.children) {
-                nodeText.style('text-anchor', 'end');
-                x = -nodeTextProperties.spaceBetweenNodeAndText;
+                var nodeTextSize = nodeText.node().getBBox();
+                x = -nodeTextProperties.spaceBetweenNodeAndText - nodeTextSize.width;
                 if (nodeTextProperties.showBackground) {
                     x -= nodeTextProperties.textPadding;
                 }
             }
             else {
-                nodeText.style('text-anchor', 'start');
                 x = nodeTextProperties.spaceBetweenNodeAndText;
                 if (nodeTextProperties.showBackground) {
                     x += nodeTextProperties.textPadding;
@@ -617,30 +617,32 @@ var D3Tree = /** @class */ (function () {
                 nodeTextGroup.attr('transform', nodeTextGroupTransformVertical);
             }
             if (nodeTextProperties.showBackground) {
-                var svgRect = nodeText.node().getBBox();
+                var nodeTextSize = nodeText.node().getBBox();
                 nodeTextGroup.insert('rect', 'text')
-                    .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-                    .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-                    .attr('height', svgRect.height + nodeTextProperties.textPadding)
-                    .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                    .attr('x', nodeTextSize.x - nodeTextProperties.textPadding / 2)
+                    .attr('y', nodeTextSize.y - nodeTextProperties.textPadding / 2)
+                    .attr('height', nodeTextSize.height + nodeTextProperties.textPadding)
+                    .attr('width', nodeTextSize.width + nodeTextProperties.textPadding)
                     .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
             }
         });
-        var nodeTextUpdate = this.nodes.select('.node-text');
-        var transformFunction;
-        if (generalProperties.orientation == Orientation.Horizontal) {
-            transformFunction = nodeTextGroupTransformHorizontal;
-        }
-        else {
-            transformFunction = nodeTextGroupTransformVertical;
-        }
-        if (this.treeProperties.nodeProperties.enableAnimation) {
-            nodeTextUpdate.transition()
-                .duration(this.treeProperties.nodeProperties.animationDuration)
-                .attr('transform', transformFunction);
-        }
-        else {
-            nodeTextUpdate.attr('tranform', transformFunction);
+        if (!nodeTextProperties.showTextInsideShape) {
+            var nodeTextUpdate = this.nodes.select('.node-text');
+            var transformFunction = void 0;
+            if (generalProperties.orientation == Orientation.Horizontal) {
+                transformFunction = nodeTextGroupTransformHorizontal;
+            }
+            else {
+                transformFunction = nodeTextGroupTransformVertical;
+            }
+            if (this.treeProperties.nodeProperties.enableAnimation) {
+                nodeTextUpdate.transition()
+                    .duration(this.treeProperties.nodeProperties.animationDuration)
+                    .attr('transform', transformFunction);
+            }
+            else {
+                nodeTextUpdate.attr('tranform', transformFunction);
+            }
         }
     };
     D3Tree.prototype._createNodeLinks = function () {

@@ -12,10 +12,8 @@ import { SVGUtils, TextStyleProperties } from './Utils';
 import { linkHorizontal, linkVertical } from 'd3-shape';
 import { Selection, select, BaseType, event } from 'd3-selection';
 import { zoom, zoomIdentity, ZoomBehavior, zoomTransform } from 'd3-zoom';
-import { max } from 'd3-array';
 import * as d3_ease from 'd3-ease';
 import 'd3-transition';
-import { transition } from 'd3-transition';
 
 // SVG Utils
 let Translate = SVGUtils.Translate;
@@ -249,7 +247,7 @@ export class D3Tree {
         if (this.enableZoom) {
 
             treeHeight = 100; // assign random height because level spacing will be calculated later based on depthWiseHeight.
-            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize; // assign random width.
+            treeWidth = this.hierarchyData.leaves().length * generalProperties.nodeSize;
 
             // zoom will change transform of group element which is child of root SVG and parent of tree
             let treeGroupZoomAction = () => {      
@@ -417,20 +415,20 @@ export class D3Tree {
     private _createNodeShapes() {
         let nodeShapeProperties: TreeNodeShapeProperties = this.treeProperties.nodeProperties.shapeProperties;
 
-        let nodeShape;
+        let nodeShape = this.nodesEnter.append('g')
+            .classed('node-shape', true);
         if (nodeShapeProperties.shapeType == ShapeType.Circle) {
-            nodeShape = this.nodesEnter.append('circle')
+            nodeShape = nodeShape.append('circle')
                 .attr('r', nodeShapeProperties.circleRadius)
         } else if (nodeShapeProperties.shapeType == ShapeType.Rectangle) {
-            nodeShape = this.nodesEnter.append('rect')
+            nodeShape = nodeShape.append('rect')
                 .attr('x', 0 - nodeShapeProperties.rectWidth / 2)
                 .attr('y', 0 - nodeShapeProperties.rectHeight / 2)
                 .attr('height', nodeShapeProperties.rectHeight)
                 .attr('width', nodeShapeProperties.rectWidth)
         }
 
-        nodeShape.classed('node-shape', true)
-            .attr('fill', (node: TreePointNode<any>) => {
+        nodeShape.attr('fill', (node: TreePointNode<any>) => {
                 if (nodeShapeProperties.takeColorFromData && node.nodeColor) {
                     return node.nodeColor;
                 } else {
@@ -552,15 +550,15 @@ export class D3Tree {
         let nodeTextGroupTransformHorizontal = (node: TreePointNode<any>, i: number, elements: Element[]) => {
             let x = 0;
             let y = 0;
-            let nodeText = select(elements[i]);
+            let nodeText = select(elements[i]).select('text');
+            nodeText.style('text-anchor', 'start');
             if (node.children) {
-                nodeText.style('text-anchor', 'end');
-                x = -nodeTextProperties.spaceBetweenNodeAndText;
+                let nodeTextSize: SVGRect = (nodeText.node() as any).getBBox();
+                x = -nodeTextProperties.spaceBetweenNodeAndText - nodeTextSize.width;
                 if (nodeTextProperties.showBackground) {
                     x -= nodeTextProperties.textPadding;
                 }
             } else {
-                nodeText.style('text-anchor', 'start');
                 x = nodeTextProperties.spaceBetweenNodeAndText;
                 if (nodeTextProperties.showBackground) {
                     x += nodeTextProperties.textPadding;
@@ -600,7 +598,7 @@ export class D3Tree {
                                 select(elements[i]).append('a')
                                     .attr('xlink:href', (node: TreePointNode<any>) => {
                                         if (node.externalURL) {
-                                            return node.externalURL
+                                            return node.externalURL;
                                         }
                                     })
                                     .attr('target', 'blank')
@@ -685,30 +683,32 @@ export class D3Tree {
                 }
 
                 if (nodeTextProperties.showBackground) {
-                    let svgRect: SVGRect = (nodeText.node() as any).getBBox();
+                    let nodeTextSize: SVGRect = (nodeText.node() as any).getBBox();
                     nodeTextGroup.insert('rect', 'text')
-                        .attr('x', svgRect.x - nodeTextProperties.textPadding / 2)
-                        .attr('y', svgRect.y - nodeTextProperties.textPadding / 2)
-                        .attr('height', svgRect.height + nodeTextProperties.textPadding)
-                        .attr('width', svgRect.width + nodeTextProperties.textPadding)
+                        .attr('x', nodeTextSize.x - nodeTextProperties.textPadding / 2)
+                        .attr('y', nodeTextSize.y - nodeTextProperties.textPadding / 2)
+                        .attr('height', nodeTextSize.height + nodeTextProperties.textPadding)
+                        .attr('width', nodeTextSize.width + nodeTextProperties.textPadding)
                         .attr('fill', nodeTextProperties.backgroundColor ? nodeTextProperties.backgroundColor : '#F2F2F2');
                 }
             });
 
-            let nodeTextUpdate = this.nodes.select('.node-text');
-            let transformFunction;
-            if (generalProperties.orientation == Orientation.Horizontal) {
-                transformFunction = nodeTextGroupTransformHorizontal;
-            } else {
-                transformFunction = nodeTextGroupTransformVertical;
-            }
-            
-            if (this.treeProperties.nodeProperties.enableAnimation) {
-                nodeTextUpdate.transition()
-                    .duration(this.treeProperties.nodeProperties.animationDuration)
-                    .attr('transform', transformFunction);
-            } else {
-                nodeTextUpdate.attr('tranform', transformFunction);
+            if (!nodeTextProperties.showTextInsideShape) {
+                let nodeTextUpdate = this.nodes.select('.node-text');
+                let transformFunction;
+                if (generalProperties.orientation == Orientation.Horizontal) {
+                    transformFunction = nodeTextGroupTransformHorizontal;
+                } else {
+                    transformFunction = nodeTextGroupTransformVertical;
+                }
+                
+                if (this.treeProperties.nodeProperties.enableAnimation) {
+                    nodeTextUpdate.transition()
+                        .duration(this.treeProperties.nodeProperties.animationDuration)
+                        .attr('transform', transformFunction);
+                } else {
+                    nodeTextUpdate.attr('tranform', transformFunction);
+                }
             }
     }
 
